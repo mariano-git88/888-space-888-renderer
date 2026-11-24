@@ -58,7 +58,12 @@ export async function runOnce(config, deps = {}) {
     // Never overwrite it with a failure. Retain the lease for reconciliation.
     const uncertain = uploadStarted && (signal.aborted || error?.uncertain === true);
     if (!uncertain && FAILURE_CODES.has(code)) await reportFailure(config, job, code, { ...deps, now });
-    logEvent(logger, uncertain ? "completion_unconfirmed" : "job_failed", { ...measurements, code, elapsedMs: now() - started });
+    logEvent(logger, uncertain ? "completion_unconfirmed" : "job_failed", {
+      ...measurements, code, elapsedMs: now() - started,
+      ...(error instanceof WorkerError ? {
+        capturePhase: error.capturePhase, captureReason: error.captureReason, errorName: error.errorName,
+      } : {}),
+    });
     return { status: "failed", code, uncertain };
   } finally { clearTimeout(timer); }
 }

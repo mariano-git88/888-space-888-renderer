@@ -22,13 +22,18 @@ call a model, publish to Instagram or spend an art project's funds.
 - JPEG photos are 1080 × 1350. Reels are normalized with FFmpeg to H.264,
   `yuv420p`, 1080 × 1920, 24fps, approximately eight seconds and MP4 faststart.
   FFprobe independently verifies output dimensions, codec and video duration.
+- The capture scene starts at its final camera pose, without the interactive
+  entrance transition. It still waits for the sculpture asset and twelve complete
+  stable frames; rendering quality, geometry and output dimensions are unchanged.
 - Source and final files may not exceed 24 MiB. Temporary files have no persistent
   storage dependency and are removed after each job.
 - Completion uploads retry at most three times with the **same bytes, digest,
   lease and headers**. A matching succeeded-job receipt is required. An uncertain
   completion is not rewritten as a failure. Other failures send only one of the
   four approved machine codes.
-- Logs contain fixed event names and timing/size measurements. Provider error
+- Logs contain fixed event names, timing/size measurements and allowlisted capture
+  phase/reason/error-name categories. An initialization timeout can be distinguished
+  from an asset, WebGL or page-script failure without retaining its message. Provider error
   bodies, browser messages, snapshots, service tokens and lease tokens are never
   logged. `maxRssKiB` describes the Node process, not total browser/container RAM.
 

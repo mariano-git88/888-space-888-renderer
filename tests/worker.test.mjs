@@ -5,7 +5,7 @@ import { runOnce } from "../worker.mjs";
 import { captureJob } from "../lib/capture.mjs";
 import { normalizeCapture } from "../lib/media.mjs";
 import { completeJob } from "../lib/api.mjs";
-import { loadConfig, safeChildEnvironment, sha256, WorkerError, SCENE_VERSION, RENDERER_VERSION } from "../lib/common.mjs";
+import { loadConfig, logEvent, safeChildEnvironment, sha256, WorkerError, SCENE_VERSION, RENDERER_VERSION } from "../lib/common.mjs";
 
 const TOKEN = "test-service-token-that-must-never-reach-browser";
 const LEASE = "test-lease-token-that-must-never-reach-browser";
@@ -261,6 +261,7 @@ test("the job deadline aborts a stuck capture and reports timeout once", async (
 test("the product browser receives only public snapshot arguments and a credential-free environment", async () => {
   const recorded = { evaluations: [] };
   const page = {
+    on() {},
     setDefaultTimeout() {},
     goto: async (url, options) => { recorded.navigation = { url, options }; return { ok: () => true }; },
     url: () => `${CONFIG.origin}/capture`,
@@ -292,6 +293,68 @@ test("the product browser receives only public snapshot arguments and a credenti
   assert.equal(await exerciseRoute(`${CONFIG.origin}/api/world`), "blocked");
   assert.equal(await exerciseRoute(`${CONFIG.origin}/capture`, "POST"), "blocked");
   assert.deepEqual(await exerciseRoute(`${CONFIG.origin}/models/creature-v2.glb`), { headers: { accept: "*/*" } });
+});
+
+test("capture initialization failures retain only diagnostic categories and still report the generic API code", async () => {
+  const fixtures = [
+    { message: "Capture initialization timed out.", reason: "initialize_timeout" },
+    { message: "The sculpture asset could not be loaded for this capture.", reason: "asset_failed" },
+    { message: "The 3D view needs WebGL.", reason: "webgl_unavailable" },
+    { message: "The 3D view was interrupted.", reason: "webgl_context_lost" },
+  ];
+  for (const fixture of fixtures) {
+    let closed = false;
+    const page = {
+      on() {}, setDefaultTimeout() {},
+      goto: async () => ({ ok: () => true }), url: () => `${CONFIG.origin}/capture`,
+      waitForFunction: async () => {},
+      evaluate: async () => { throw new Error(`${fixture.message} https://private.example/?token=${TOKEN} ${LEASE}`); },
+    };
+    const browser = { newContext: async () => ({ route: async () => {}, newPage: async () => page }), close: async () => { closed = true; } };
+    const calls = [], logs = [];
+    const result = await runOnce(CONFIG, deps({
+      capture: (config, current, options) => captureJob(config, current, { ...options, chromium: { launch: async () => browser } }),
+      logger: record => logs.push(record),
+      fetchImpl: async (url, options) => { calls.push({ url, options }); return json(url.endsWith("/claim") ? { job: job() } : {}); },
+    }));
+    assert.equal(result.code, "render_failed");
+    assert.equal(closed, true);
+    assert.deepEqual(JSON.parse(calls.at(-1).options.body), { code: "render_failed" });
+    assert.equal(logs[0].capturePhase, "initialize");
+    assert.equal(logs[0].captureReason, fixture.reason);
+    assert.equal(logs[0].errorName, "Error");
+    assert.equal(JSON.stringify(logs).includes(TOKEN), false);
+    assert.equal(JSON.stringify(logs).includes(LEASE), false);
+    assert.equal(JSON.stringify(logs).includes("private.example"), false);
+  }
+});
+
+test("an uncaught page error is distinguishable from a readiness timeout without retaining its text", async () => {
+  const handlers = {};
+  const page = {
+    on: (event, handler) => { handlers[event] = handler; }, setDefaultTimeout() {},
+    goto: async () => ({ ok: () => true }), url: () => `${CONFIG.origin}/capture`, waitForFunction: async () => {},
+    evaluate: async () => { handlers.pageerror(new TypeError(`private ${TOKEN}`)); throw new Error("Capture initialization timed out."); },
+  };
+  const browser = { newContext: async () => ({ route: async () => {}, newPage: async () => page }), close: async () => {} };
+  await assert.rejects(captureJob(CONFIG, job(), { chromium: { launch: async () => browser } }), error => {
+    assert.equal(error.code, "render_failed");
+    assert.equal(error.capturePhase, "initialize");
+    assert.equal(error.captureReason, "page_error");
+    assert.equal(error.errorName, "TypeError");
+    assert.equal(JSON.stringify(error).includes(TOKEN), false);
+    return true;
+  });
+});
+
+test("diagnostic fields reject values outside their fixed vocabulary", () => {
+  const error = new WorkerError("render_failed", { capturePhase: TOKEN, captureReason: LEASE, errorName: "https://private.example" });
+  assert.equal(error.capturePhase, undefined);
+  assert.equal(error.captureReason, undefined);
+  assert.equal(error.errorName, undefined);
+  const logs = [];
+  logEvent(record => logs.push(record), "job_failed", { capturePhase: TOKEN, captureReason: LEASE, errorName: "https://private.example", message: TOKEN });
+  assert.deepEqual(logs, [{ event: "job_failed", rendererVersion: RENDERER_VERSION }]);
 });
 
 test("subprocess environments cannot inherit provider tokens or debug settings", () => {
