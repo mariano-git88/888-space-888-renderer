@@ -21,10 +21,16 @@ call a model, publish to Instagram or spend an art project's funds.
   on the configured origin, and `/api` requests are blocked.
 - JPEG photos are 1080 × 1350. Reels are normalized with FFmpeg to H.264,
   `yuv420p`, 1080 × 1920, 24fps, approximately eight seconds and MP4 faststart.
-  FFprobe independently verifies output dimensions, codec and video duration.
+  FFprobe independently verifies output dimensions, codec, video duration, average
+  and nominal frame rates, and frame count. These measured values enter the logs.
 - The capture scene starts at its final camera pose, without the interactive
   entrance transition. It still waits for the sculpture asset and twelve complete
   stable frames; rendering quality, geometry and output dimensions are unchanged.
+- Reel recording stops on a separate eight-second timer, without waiting for the
+  next animation frame. Interactive recording has a fourteen-second watchdog;
+  unattended recording allows at most sixty seconds for a delayed frame/encoder
+  close. Actual stop time is retained. A bounded longer raw clip may be trimmed,
+  but the final MP4 must still measure 7.5–8.5 seconds at 24fps and 1080 × 1920.
 - Source and final files may not exceed 24 MiB. Temporary files have no persistent
   storage dependency and are removed after each job.
 - Completion uploads retry at most three times with the **same bytes, digest,
@@ -70,20 +76,21 @@ retries, receipt verification, failure sanitization and credential isolation.
 
 When FFmpeg and FFprobe are already installed, `npm run test:media` additionally
 generates temporary synthetic JPEG/WebM fixtures, runs the real normalization
-pipeline and checks the output MP4's duration and faststart atom order. It does
+pipeline on a twelve-second source and checks the final eight-second MP4's frame
+rates, frame count, duration and faststart atom order. It does
 not launch a browser, access the Site or benchmark 3D rendering.
 
 For a real runtime build, build this directory as the Docker context:
 
 ```sh
-docker build --tag gaetano-renderer:0.1.0 services/renderer
+docker build --tag gaetano-renderer:0.1.2 services/renderer
 ```
 
 Run a prepared local environment file only after the Site's queue and capture
 endpoint are available:
 
 ```sh
-docker run --rm --env-file /secure/path/gaetano-renderer.env gaetano-renderer:0.1.0
+docker run --rm --env-file /secure/path/gaetano-renderer.env gaetano-renderer:0.1.2
 ```
 
 There is no HTTP listener and no required public port. Do not run this package as
@@ -123,7 +130,7 @@ job with these settings:
 | Dockerfile | `./Dockerfile` |
 | Docker command | Leave unset; image CMD runs `node worker.mjs --once` |
 | Schedule | `*/5 * * * *` (UTC) |
-| Compute | `2c-4g` for the first measured benchmark |
+| Compute | 2 CPU / 4 GB; Render MCP creation uses `plan: "pro"` |
 | Region | Frankfurt, unless the verified existing deployment warrants another |
 | Automatic deploys | Enabled for the worker's dedicated branch |
 
@@ -131,6 +138,11 @@ The exposed Render cron-creation tool supports these source-based Docker
 settings. It does **not** support creating a cron job from a prebuilt image;
 that is a separate dashboard/API path. Do not create a Blueprint or public web
 service for this first scheduled renderer.
+
+The live service was created successfully with the MCP alias `plan: "pro"`
+(2 CPU / 4 GB). The compute label `2c-4g` was rejected as a creation-plan value
+by this connector. Use the verified MCP alias when reproducing this setup;
+this does not require changing the existing service.
 
 Set the three environment values from `.env.example` in Render's Environment
 settings. Generate the scoped renderer credential during installation and set the
@@ -180,7 +192,7 @@ Node-side bearer credential and these headers:
 - `X-Content-Sha256`
 - `X-Render-Width`, `X-Render-Height`
 - `X-Render-Duration-Ms` for a reel
-- `X-Renderer-Version: gaetano-renderer/0.1.0`
+- `X-Renderer-Version: gaetano-renderer/0.1.2`
 
 The completion response must identify the same job with `status: "succeeded"`.
 Any returned artifact digest and receipt dimensions/bytes/content type must match

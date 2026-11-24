@@ -49,6 +49,8 @@ export async function runOnce(config, deps = {}) {
     logEvent(logger, "job_succeeded", {
       ...measurements, elapsedMs: now() - started, bytes: artifact.bytes.length,
       width: artifact.width, height: artifact.height, durationMs: artifact.durationMs,
+      sourceDurationMs: artifact.sourceDurationMs, captureDurationMs: artifact.captureDurationMs,
+      averageFps: artifact.averageFps, nominalFps: artifact.nominalFps, frameCount: artifact.frameCount,
       maxRssKiB: process.resourceUsage().maxRSS,
     });
     return { status: "succeeded", bytes: artifact.bytes.length };

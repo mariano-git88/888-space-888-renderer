@@ -347,6 +347,31 @@ test("an uncaught page error is distinguishable from a readiness timeout without
   });
 });
 
+test("reel recording failures have safe categories without leaking browser messages", async () => {
+  for (const [message, reason] of [
+    ["Recording took too long on this device. Try saving a photo.", "recording_timeout"],
+    ["Recording stopped because the world tab was hidden.", "page_hidden"],
+    ["This browser does not provide a supported video encoder.", "encoder_unavailable"],
+    ["The browser could not finish encoding the clip.", "encoder_failed"],
+    ["The browser produced an empty clip.", "empty_clip"],
+    ["The clip exceeded the capture size limit.", "media_limit"],
+  ]) {
+    const page = {
+      on() {}, setDefaultTimeout() {}, goto: async () => ({ ok: () => true }),
+      url: () => `${CONFIG.origin}/capture`, waitForFunction: async () => {},
+      evaluate: async (_fn, args) => { if (args.kind) throw new Error(`${message} ${TOKEN} ${LEASE}`); },
+    };
+    const browser = { newContext: async () => ({ route: async () => {}, newPage: async () => page }), close: async () => {} };
+    await assert.rejects(captureJob(CONFIG, job({ kind: "reel" }), { chromium: { launch: async () => browser } }), error => {
+      assert.equal(error.capturePhase, "capture");
+      assert.equal(error.captureReason, reason);
+      assert.equal(JSON.stringify(error).includes(TOKEN), false);
+      assert.equal(JSON.stringify(error).includes(LEASE), false);
+      return true;
+    });
+  }
+});
+
 test("diagnostic fields reject values outside their fixed vocabulary", () => {
   const error = new WorkerError("render_failed", { capturePhase: TOKEN, captureReason: LEASE, errorName: "https://private.example" });
   assert.equal(error.capturePhase, undefined);
@@ -388,7 +413,7 @@ test("reel normalization uses H264, yuv420p, faststart and validated eight-secon
   }), { runProcess: async (command, args) => {
     commands.push({ command, args });
     if (command === "ffmpeg") { await writeFile(args.at(-1), mp4); return ""; }
-    return JSON.stringify({ streams: [{ codec_type: "video", codec_name: args.at(-1).endsWith("output.mp4") ? "h264" : "vp9", width: 1080, height: 1920, pix_fmt: "yuv420p" }], format: { duration: "8.000000", format_name: "mov,mp4,m4a,3gp,3g2,mj2" } });
+    return JSON.stringify({ streams: [{ codec_type: "video", codec_name: args.at(-1).endsWith("output.mp4") ? "h264" : "vp9", width: 1080, height: 1920, pix_fmt: "yuv420p", avg_frame_rate: "24/1", r_frame_rate: "24/1", nb_frames: "192" }], format: { duration: "8.000000", format_name: "mov,mp4,m4a,3gp,3g2,mj2" } });
   } });
   const args = commands.find(item => item.command === "ffmpeg").args;
   assert.equal(args[args.indexOf("-c:v") + 1], "libx264");
@@ -397,7 +422,44 @@ test("reel normalization uses H264, yuv420p, faststart and validated eight-secon
   assert.ok(args.includes("-an"));
   assert.equal(output.mimeType, "video/mp4");
   assert.equal(output.durationMs, 8000);
+  assert.equal(output.sourceDurationMs, 8000);
+  assert.equal(output.averageFps, 24); assert.equal(output.nominalFps, 24); assert.equal(output.frameCount, 192);
+  assert.ok(commands.filter(item => item.command === "ffprobe").every(item => item.args.some(value => value.includes("avg_frame_rate,r_frame_rate,nb_frames"))));
   assert.equal(output.sha256, sha256(mp4));
+});
+
+test("a bounded longer raw reel is normalized while preserving measured source and capture durations", async () => {
+  const result = await normalizeCapture(job({ kind: "reel" }), capture({
+    base64: Buffer.from("long-webm-source").toString("base64"), mimeType: "video/webm", height: 1920, durationSeconds: 18.25,
+  }), { runProcess: async (command, args) => {
+    if (command === "ffmpeg") { await writeFile(args.at(-1), Buffer.from("normalized-mp4")); return ""; }
+    const output = args.at(-1).endsWith("output.mp4");
+    return JSON.stringify({ streams: [{ codec_type: "video", codec_name: output ? "h264" : "vp9", width: 1080, height: 1920, pix_fmt: "yuv420p", avg_frame_rate: "24/1", r_frame_rate: "24/1", nb_frames: output ? "192" : "432" }], format: { duration: output ? "8.000" : "18.000", format_name: "mov,mp4" } });
+  } });
+  assert.equal(result.captureDurationMs, 18250);
+  assert.equal(result.sourceDurationMs, 18000);
+  assert.equal(result.durationMs, 8000);
+  assert.equal(result.averageFps, 24); assert.equal(result.frameCount, 192);
+});
+
+test("raw reel durations outside the unattended bound are rejected before media processes run", async () => {
+  for (const durationSeconds of [0, 6.99, 60.001, Infinity, NaN]) {
+    await assert.rejects(normalizeCapture(job({ kind: "reel" }), capture({
+      base64: Buffer.from("webm-source").toString("base64"), mimeType: "video/webm", height: 1920, durationSeconds,
+    }), { runProcess: () => assert.fail("out-of-bounds source reached a media process") }), /render_failed/);
+  }
+});
+
+test("normalization rejects a final frame rate or count that disagrees with the required clip", async () => {
+  for (const incorrect of [{ avg_frame_rate: "25/1" }, { r_frame_rate: "0/0" }, { nb_frames: "N/A" }, { nb_frames: "1" }]) {
+    await assert.rejects(normalizeCapture(job({ kind: "reel" }), capture({
+      base64: Buffer.from("webm-source").toString("base64"), mimeType: "video/webm", height: 1920, durationSeconds: 8,
+    }), { runProcess: async (command, args) => {
+      if (command === "ffmpeg") { await writeFile(args.at(-1), Buffer.from("invalid-mp4")); return ""; }
+      const output = args.at(-1).endsWith("output.mp4");
+      return JSON.stringify({ streams: [{ codec_type: "video", codec_name: "h264", width: 1080, height: 1920, pix_fmt: "yuv420p", avg_frame_rate: "24/1", r_frame_rate: "24/1", nb_frames: "192", ...(output ? incorrect : {}) }], format: { duration: "8.000", format_name: "mov,mp4" } });
+    } }), /encode_failed/);
+  }
 });
 
 test("a false JPEG dimension claim is rejected by independent probe", async () => {
