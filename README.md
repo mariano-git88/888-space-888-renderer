@@ -42,6 +42,12 @@ call a model, publish to Instagram or spend an art project's funds.
   from an asset, WebGL or page-script failure without retaining its message. Provider error
   bodies, browser messages, snapshots, service tokens and lease tokens are never
   logged. `maxRssKiB` describes the Node process, not total browser/container RAM.
+- Media failures include a bounded processing phase and reason, capture MIME/codec
+  enums, input/output sizes, actual capture time and measured source/output duration,
+  dimensions, frame rates and encoded/decoded frame counts when available. This
+  distinguishes a short or header-only stream from a transcoder failure without
+  logging metadata strings or subprocess stderr. Temporary input and output files
+  are still deleted on failure; diagnostics do not retain private media.
 
 ## Runtime and versions
 
@@ -83,14 +89,14 @@ not launch a browser, access the Site or benchmark 3D rendering.
 For a real runtime build, build this directory as the Docker context:
 
 ```sh
-docker build --tag gaetano-renderer:0.1.2 services/renderer
+docker build --tag gaetano-renderer:0.1.3 services/renderer
 ```
 
 Run a prepared local environment file only after the Site's queue and capture
 endpoint are available:
 
 ```sh
-docker run --rm --env-file /secure/path/gaetano-renderer.env gaetano-renderer:0.1.2
+docker run --rm --env-file /secure/path/gaetano-renderer.env gaetano-renderer:0.1.3
 ```
 
 There is no HTTP listener and no required public port. Do not run this package as
@@ -192,7 +198,7 @@ Node-side bearer credential and these headers:
 - `X-Content-Sha256`
 - `X-Render-Width`, `X-Render-Height`
 - `X-Render-Duration-Ms` for a reel
-- `X-Renderer-Version: gaetano-renderer/0.1.2`
+- `X-Renderer-Version: gaetano-renderer/0.1.3`
 
 The completion response must identify the same job with `status: "succeeded"`.
 Any returned artifact digest and receipt dimensions/bytes/content type must match

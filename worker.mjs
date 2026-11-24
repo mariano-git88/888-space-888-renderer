@@ -47,6 +47,7 @@ export async function runOnce(config, deps = {}) {
     await completeJob(config, job, artifact, { ...deps, signal, now });
     measurements.uploadMs = now() - phaseStarted;
     logEvent(logger, "job_succeeded", {
+      ...artifact.diagnostics,
       ...measurements, elapsedMs: now() - started, bytes: artifact.bytes.length,
       width: artifact.width, height: artifact.height, durationMs: artifact.durationMs,
       sourceDurationMs: artifact.sourceDurationMs, captureDurationMs: artifact.captureDurationMs,
@@ -64,6 +65,7 @@ export async function runOnce(config, deps = {}) {
       ...measurements, code, elapsedMs: now() - started,
       ...(error instanceof WorkerError ? {
         capturePhase: error.capturePhase, captureReason: error.captureReason, errorName: error.errorName,
+        mediaPhase: error.mediaPhase, mediaReason: error.mediaReason, ...error.mediaMeasurements,
       } : {}),
     });
     return { status: "failed", code, uncertain };

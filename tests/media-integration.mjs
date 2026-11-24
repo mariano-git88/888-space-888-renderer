@@ -35,5 +35,8 @@ try {
   assert.equal(reel.durationMs, 8000);
   assert.equal(reel.sourceDurationMs, 12000);
   assert.equal(reel.averageFps, 24); assert.equal(reel.nominalFps, 24); assert.equal(reel.frameCount, 192);
+  assert.equal(reel.diagnostics.captureMime, "video/webm");
+  assert.equal(reel.diagnostics.sourceDecodedFrames, 288);
+  assert.equal(reel.diagnostics.decodedFrames, 192);
   process.stdout.write(`${JSON.stringify({ event: "media_smoke_passed", elapsedMs: Date.now() - started, photoBytes: photo.bytes.length, reelBytes: reel.bytes.length, sourceDurationMs: reel.sourceDurationMs, durationMs: reel.durationMs, averageFps: reel.averageFps, nominalFps: reel.nominalFps, frameCount: reel.frameCount, dimensions: [reel.width, reel.height], faststart: true })}\n`);
 } finally { await rm(dir, { recursive: true, force: true }); }

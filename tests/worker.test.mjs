@@ -380,6 +380,13 @@ test("diagnostic fields reject values outside their fixed vocabulary", () => {
   const logs = [];
   logEvent(record => logs.push(record), "job_failed", { capturePhase: TOKEN, captureReason: LEASE, errorName: "https://private.example", message: TOKEN });
   assert.deepEqual(logs, [{ event: "job_failed", rendererVersion: RENDERER_VERSION }]);
+  const media = new WorkerError("encode_failed", {
+    mediaPhase: TOKEN, mediaReason: LEASE,
+    mediaMeasurements: { inputBytes: 123, sourceFrameCount: 1, captureMime: TOKEN, sourceCodec: LEASE, sourceContainer: "https://private.example", message: TOKEN },
+  });
+  assert.equal(media.mediaPhase, undefined); assert.equal(media.mediaReason, undefined);
+  assert.deepEqual(media.mediaMeasurements, { inputBytes: 123, sourceFrameCount: 1 });
+  assert.equal(JSON.stringify(media).includes(TOKEN), false); assert.equal(JSON.stringify(media).includes(LEASE), false);
 });
 
 test("subprocess environments cannot inherit provider tokens or debug settings", () => {
@@ -460,6 +467,72 @@ test("normalization rejects a final frame rate or count that disagrees with the 
       return JSON.stringify({ streams: [{ codec_type: "video", codec_name: "h264", width: 1080, height: 1920, pix_fmt: "yuv420p", avg_frame_rate: "24/1", r_frame_rate: "24/1", nb_frames: "192", ...(output ? incorrect : {}) }], format: { duration: "8.000", format_name: "mov,mp4" } });
     } }), /encode_failed/);
   }
+});
+
+test("a one-frame short clip records measured failure evidence and removes input/output without leaking metadata", async () => {
+  const paths = new Set();
+  let failure;
+  await assert.rejects(normalizeCapture(job({ kind: "reel" }), capture({
+    base64: Buffer.from("one-frame-mp4").toString("base64"), mimeType: `video/mp4;codecs=avc1.42E01E;private=${TOKEN}`, height: 1920, durationSeconds: 10.5,
+  }), { runProcess: async (command, args) => {
+    paths.add(args.at(-1));
+    if (command === "ffmpeg") { await writeFile(args.at(-1), Buffer.from("one-frame-output")); return ""; }
+    return JSON.stringify({ streams: [{ codec_type: "video", codec_name: "h264", width: 1080, height: 1920, pix_fmt: "yuv420p", avg_frame_rate: "24/1", r_frame_rate: "24/1", nb_frames: "1", nb_read_frames: "1", private: TOKEN }], format: { duration: "0.041667", format_name: `mov,mp4,${LEASE}` } });
+  } }), error => {
+    failure = error;
+    assert.equal(error.code, "encode_failed");
+    assert.equal(error.mediaPhase, "output_validate");
+    assert.equal(error.mediaReason, "output_duration");
+    assert.equal(error.mediaMeasurements.captureMime, "video/mp4");
+    assert.equal(error.mediaMeasurements.captureCodec, "h264");
+    assert.equal(error.mediaMeasurements.captureDurationMs, 10500);
+    assert.equal(error.mediaMeasurements.inputBytes, 13);
+    assert.equal(error.mediaMeasurements.sourceDurationMs, 42);
+    assert.equal(error.mediaMeasurements.sourceFrameCount, 1);
+    assert.equal(error.mediaMeasurements.sourceDecodedFrames, 1);
+    assert.equal(error.mediaMeasurements.durationMs, 42);
+    assert.equal(error.mediaMeasurements.frameCount, 1);
+    assert.equal(error.mediaMeasurements.decodedFrames, 1);
+    assert.equal(error.mediaMeasurements.sourceContainer, "mp4");
+    return true;
+  });
+  const logs = [];
+  logEvent(record => logs.push(record), "job_failed", { code: failure.code, mediaPhase: failure.mediaPhase, mediaReason: failure.mediaReason, ...failure.mediaMeasurements });
+  assert.equal(logs[0].sourceFrameCount, 1);
+  assert.equal(JSON.stringify({ failure, logs }).includes(TOKEN), false);
+  assert.equal(JSON.stringify({ failure, logs }).includes(LEASE), false);
+  for (const path of paths) await assert.rejects(access(path));
+});
+
+test("a header-only input with no video stream is identified before transcoding", async () => {
+  await assert.rejects(normalizeCapture(job({ kind: "reel" }), capture({
+    base64: Buffer.from("mp4-header-only").toString("base64"), mimeType: "video/mp4", height: 1920, durationSeconds: 9,
+  }), { runProcess: async command => {
+    assert.equal(command, "ffprobe");
+    return JSON.stringify({ streams: [], format: { format_name: "mov,mp4" } });
+  } }), error => {
+    assert.equal(error.mediaPhase, "input_probe");
+    assert.equal(error.mediaReason, "video_stream_count");
+    assert.equal(error.mediaMeasurements.videoStreamCount, 0);
+    return true;
+  });
+});
+
+test("a transcode process failure is distinct from media validation and does not retain stderr", async () => {
+  await assert.rejects(normalizeCapture(job({ kind: "reel" }), capture({
+    base64: Buffer.from("webm-source").toString("base64"), mimeType: "video/webm;codecs=vp8", height: 1920, durationSeconds: 8,
+  }), { runProcess: async command => {
+    if (command === "ffmpeg") throw new Error(`stderr ${TOKEN} ${LEASE} https://private.example`);
+    return JSON.stringify({ streams: [{ codec_type: "video", codec_name: "vp8", width: 1080, height: 1920, nb_read_frames: "4" }], format: { duration: "8", format_name: "matroska,webm" } });
+  } }), error => {
+    assert.equal(error.mediaPhase, "transcode");
+    assert.equal(error.mediaReason, "transcode_failed");
+    assert.equal(error.mediaMeasurements.captureCodec, "vp8");
+    assert.equal(error.mediaMeasurements.sourceDecodedFrames, 4);
+    assert.equal(JSON.stringify(error).includes(TOKEN), false);
+    assert.equal(JSON.stringify(error).includes("private.example"), false);
+    return true;
+  });
 });
 
 test("a false JPEG dimension claim is rejected by independent probe", async () => {
