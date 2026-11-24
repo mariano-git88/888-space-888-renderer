@@ -1,0 +1,13 @@
+{
+  "name": "gaetano-renderer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.13.0" },
+  "scripts": {
+    "start": "node worker.mjs --once",
+    "test": "node --test tests/*.test.mjs",
+    "test:media": "node tests/media-integration.mjs"
+  },
+  "dependencies": { "playwright": "1.64.1" }
+}
