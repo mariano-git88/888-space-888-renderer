@@ -48,6 +48,12 @@ export function makeScopeObserver({pool,installedToken,meta,configured}){
  async function init(){
    await pool.query("CREATE TABLE IF NOT EXISTS gaetano_social_scopes (id TEXT PRIMARY KEY CHECK(id='gaetano'), grants JSONB NOT NULL DEFAULT '{}'::jsonb, check_status TEXT NOT NULL, checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
  }
+ async function recordFromMeta(payload){
+   const grants=normalizeGrantedScopes(payload);
+   await init();
+   await pool.query("INSERT INTO gaetano_social_scopes(id,grants,check_status,checked_at) VALUES('gaetano',$1::jsonb,'ok',NOW()) ON CONFLICT(id) DO UPDATE SET grants=EXCLUDED.grants,check_status=EXCLUDED.check_status,checked_at=NOW()",[JSON.stringify(grants)]);
+   return visibleActionMatrix({grants,check_status:'ok',checked_at:new Date()});
+ }
  async function observe(){
    if(busy||!configured())return;
    busy=true;
@@ -69,5 +75,5 @@ export function makeScopeObserver({pool,installedToken,meta,configured}){
    const r=await pool.query("SELECT grants,check_status,checked_at FROM gaetano_social_scopes WHERE id='gaetano'");
    return visibleActionMatrix(r.rows[0]);
  }
- return {observe,read};
+ return {observe,read,recordFromMeta};
 }
