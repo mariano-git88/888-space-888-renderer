@@ -58,7 +58,7 @@ export function makeResearchCollector({ pool, installedToken, meta, igId, approv
   async function readPublicSources(limit=12) {
     await initialize();
     const n=Math.max(1,Math.min(12,Number.isInteger(limit)?limit:12));
-    const r=await pool.query("SELECT username,permalink,media_type,posted_at FROM gaetano_research_posts WHERE permalink LIKE 'https://www.instagram.com/p/%' ORDER BY posted_at DESC NULLS LAST LIMIT $1",[n]);
+    const r=await pool.query("SELECT username,permalink,media_type,posted_at,caption FROM gaetano_research_posts WHERE permalink LIKE 'https://www.instagram.com/p/%' ORDER BY posted_at DESC NULLS LAST LIMIT $1",[n]);
     return r.rows;
   }
   async function readStatus() {
