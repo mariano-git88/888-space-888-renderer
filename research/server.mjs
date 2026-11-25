@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import { makeResearchCollector } from './collector.mjs';
 import { createAccountObserver } from './account-pulse.mjs';
 import { makeScopeObserver } from './social-permissions.mjs';
+import { executeMentionReply } from './mention-reply.mjs';
 import { publicSourceManifest, publicResearchHealth } from './public.mjs';
 import { publicReadingMap } from './artist-roster.mjs';
 import { studioHTML } from './studio.mjs';
@@ -40,6 +41,18 @@ async function meta(path,token,params={}){
  const body=await response.json().catch(()=>({}));
  if(!response.ok||body.error)throw error('meta_request_failed');
  return body;
+}
+async function metaPost(path,token,params={}){
+ const u=new URL(graphBase+'/'+path);
+ const form=new URLSearchParams();
+ for(const [k,v] of Object.entries(params))if(v!==null&&v!==undefined)form.set(k,String(v));
+ const response=await fetch(u,{
+   method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/x-www-form-urlencoded'},
+   body:form,redirect:'error',signal:AbortSignal.timeout(16000)
+ });
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok||data.error||!data.id)throw error('mention_reply_provider_unconfirmed');
+ return {id:String(data.id)};
 }
 async function oauthExchange(code){
  const u=new URL(graphBase+'/oauth/access_token');
@@ -189,6 +202,21 @@ const server=http.createServer(async(req,res)=>{
     res.writeHead(302,{'Set-Cookie':stateCookie(state),'Location':authorizeURL({appId:e.META_APP_ID,redirectURI:e.META_REDIRECT_URI,state,version,configId:e.META_LOGIN_CONFIG_ID}), 'Cache-Control':'no-store'});return res.end();
   }
   if(req.method==='GET'&&u.pathname==='/auth/facebook/callback')return callback(req,res,u);
+  if(req.method==='POST'&&u.pathname==='/internal/mention-reply'){
+    if(!e.MENTION_WRITE_KEY)return send(res,503,{status:'write_connection_disabled'});
+    const header=String(req.headers.authorization||'');
+    if(!header.startsWith('Bearer ')||!secureEqual(header.slice(7),e.MENTION_WRITE_KEY))return send(res,401,{status:'unauthorized'});
+    if(!configured())return send(res,503,{status:'not_configured'});
+    if(!String(req.headers['content-type']||'').toLowerCase().startsWith('application/json'))return send(res,415,{status:'json_required'});
+    let args;
+    try{args=await readBody(req)}catch{return send(res,400,{status:'invalid_request'})}
+    try{
+      return send(res,200,await executeMentionReply({pool,meta,post:(id,token,params)=>metaPost(id+'/mentions',token,params),installedToken,igId:e.META_IG_ID,args}));
+    }catch(err){
+      // Invalid, unverifiable or unsupported inputs must never trigger a Meta write.
+      return send(res,422,{status:err?.message==='mention_unverified'?'mention_not_verified':'mention_request_not_eligible'});
+    }
+  }
   if(req.method==='GET'&&u.pathname==='/internal/status'){
     if(!authenticated(req))return send(res,401,{status:'unauthorized'});
     if(!configured())return send(res,503,{status:'not_configured'});
