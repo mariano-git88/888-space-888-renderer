@@ -6,6 +6,7 @@ import { publicSourceManifest,captionCues,publicResearchHealth } from './public.
 import { publicAccountPulse } from './account-pulse.mjs';
 import { validateMentionReply, containsGaetanoMention } from './mention-reply.mjs';
 import {verifyMetaSignature,parseSignedMentions,matchMetaVerification} from './mention-events.mjs';
+import {validateTag,publicHashtagSources} from './hashtag-research.mjs';
 import {createHmac} from 'node:crypto';
 import { visibleActionMatrix } from './social-permissions.mjs';
 import { authorizeURL } from './security.mjs';
@@ -52,5 +53,8 @@ export function verifyCreativeRelease() {
   if(parseSignedMentions(signedPayload,signedHeader,fakeSecret,'17841400000000001').length!==1)throw Error('signed_mention_not_parsed');
   const q=new URLSearchParams({'hub.mode':'subscribe','hub.verify_token':'example-verify-token','hub.challenge':'12345'});
   if(matchMetaVerification(q,'example-verify-token')!=='12345'||matchMetaVerification(q,'wrong')!==null)throw Error('webhook_challenge_validation_broken');
-  return {checks:22,fieldEvents:fieldSnapshot.events.length,latestSource:fieldSnapshot.lastEventId};
+  if(!validateTag('mailart')||validateTag('not-an-approved-hashtag'))throw Error('hashtag_allowlist_invalid');
+  const hashtag=publicHashtagSources([{tag:'mailart',permalink:'https://www.instagram.com/p/A1b_C2/',caption:'must not leak'}]);
+  if(hashtag.media.length!==1||JSON.stringify(hashtag).includes('must not leak'))throw Error('hashtag_privacy_broken');
+  return {checks:24,fieldEvents:fieldSnapshot.events.length,latestSource:fieldSnapshot.lastEventId};
 }
