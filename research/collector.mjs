@@ -38,7 +38,13 @@ export function makeResearchCollector({ pool, installedToken, meta, igId, approv
           // No captions, media URLs, private identifiers, or bearer tokens in logs.
           console.log('gaetano_research_scan_ok count='+clean.media.length+' rich_metadata='+hasVisualFields);
         }catch{
-          console.log('gaetano_research_scan_failed');
+          // Even unsuccessful requests are durable observations. Avoid unbounded
+          // retries on restart and distinguish an unavailable target from no posts.
+          try {
+            await pool.query("INSERT INTO gaetano_research_scans(username,last_scan_at,last_status) VALUES($1,NOW(),'unavailable') ON CONFLICT(username) DO UPDATE SET last_scan_at=NOW(),last_status='unavailable'",[username]);
+          } catch { console.log('gaetano_research_status_write_failed'); }
+          // Usernames are the pre-approved public artist sources, never creators or senders.
+          console.log('gaetano_research_scan_unavailable target='+username);
         }
       }
       // Research cache is temporary, not the durable artistic reference archive.
