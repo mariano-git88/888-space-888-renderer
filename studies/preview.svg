@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="720" viewBox="0 0 1080 720" role="img" aria-label="Generative landscape study">
+<defs><linearGradient id="air" x2="0" y2="1"><stop stop-color="#adbdc3"/><stop offset="1" stop-color="#eadabc"/></linearGradient><linearGradient id="land" x2="0" y2="1"><stop stop-color="#eadabc"/><stop offset=".3" stop-color="#9e9274"/><stop offset="1" stop-color="#51634a"/></linearGradient></defs>
+<rect width="1080" height="720" fill="url(#air)"/>
+<path d="M0 307.77 L0 301.4 L45 300.27 L90 298.53 L135 296.03 L180 295.33 L225 299.48 L270 309.08 L315 320.75 L360 328.7 L405 328.35 L450 319.46 L495 306.42 L540 295.56 L585 291.22 L630 293.46 L675 298.91 L720 303.8 L765 306.74 L810 309.17 L855 313.28 L900 319.23 L945 324.14 L990 323.88 L1035 316.32 L1080 303.63 L1080 720 L0 720 Z" fill="url(#land)"/>
+<path d="M0 317.53 L54 319.19 L108 319.43 L162 319.48 L216 319.36 L270 319.05 L324 318.61 L378 318.06 L432 317.46 L486 316.87 L540 316.34 L594 315.93 L648 315.66 L702 315.58 L756 315.69 L810 315.97 L864 316.4 L918 316.93 L972 317.53 L1026 318.12 L1080 318.66" fill="none" stroke="#51634a" stroke-opacity="0.1" stroke-width="0.82"/>
+<path d="M0 341.77 L54 345.64 L108 345.29 L162 344.6 L216 343.65 L270 342.51 L324 341.31 L378 340.15 L432 339.14 L486 338.38 L540 337.95 L594 337.88 L648 338.18 L702 338.83 L756 339.75 L810 340.87 L864 342.07 L918 343.24 L972 344.27 L1026 345.07 L1080 345.55" fill="none" stroke="#51634a" stroke-opacity="0.12" stroke-width="0.94"/>
+<path d="M0 378.3 L54 382.22 L108 380.7 L162 378.96 L216 377.15 L270 375.45 L324 374.03 L378 373.01 L432 372.5 L486 372.54 L540 373.13 L594 374.21 L648 375.69 L702 377.41 L756 379.22 L810 380.94 L864 382.41 L918 383.49 L972 384.07 L1026 384.11 L1080 383.59" fill="none" stroke="#51634a" stroke-opacity="0.14" stroke-width="1.06"/>
+<path d="M0 426.15 L54 426.4 L108 424.01 L162 421.82 L216 420.04 L270 418.85 L324 418.35 L378 418.6 L432 419.57 L486 421.16 L540 423.23 L594 425.58 L648 427.99 L702 430.21 L756 432.06 L810 433.33 L864 433.93 L918 433.78 L972 432.91 L1026 431.39 L1080 429.37" fill="none" stroke="#51634a" stroke-opacity="0.15" stroke-width="1.18"/>
+<path d="M0 484.67 L54 478.62 L108 476.57 L162 475.29 L216 474.91 L270 475.46 L324 476.88 L378 479.05 L432 481.75 L486 484.74 L540 487.71 L594 490.4 L648 492.53 L702 493.92 L756 494.43 L810 494.01 L864 492.69 L918 490.61 L972 487.97 L1026 485.01 L1080 482.02" fill="none" stroke="#51634a" stroke-opacity="0.16" stroke-width="1.3"/>
+<path d="M0 553.38 L54 541.91 L108 541.74 L162 542.67 L216 544.63 L270 547.43 L324 550.79 L378 554.4 L432 557.91 L486 560.99 L540 563.35 L594 564.75 L648 565.07 L702 564.28 L756 562.45 L810 559.75 L864 556.45 L918 552.85 L972 549.31 L1026 546.15 L1080 543.68" fill="none" stroke="#51634a" stroke-opacity="0.18" stroke-width="1.42"/>
+<path d="M0 631.93 L54 619.92 L108 622.48 L162 625.94 L216 629.98 L270 634.2 L324 638.2 L378 641.6 L432 644.09 L486 645.41 L540 645.45 L594 644.2 L648 641.78 L702 638.42 L756 634.44 L810 630.22 L864 626.16 L918 622.66 L972 620.04 L1026 618.55 L1080 618.33" fill="none" stroke="#51634a" stroke-opacity="0.2" stroke-width="1.54"/>
+<path d="M339.25 402.26 v-16.06" stroke="#51634a" stroke-width="1.02" opacity="0.61"/>
+<ellipse cx="339.25" cy="386.2" rx="4.38" ry="9.49" fill="#51634a" opacity="0.61"/>
+<path d="M657.86 416.04 v-13.78 h9.19 v13.78" fill="none" stroke="#51634a" stroke-width="2.3" opacity="0.63"/>
+<ellipse cx="745.2" cy="420.81" rx="3.11" ry="1.94" fill="#51634a" opacity="0.64"/>
+<path d="M367.84 467.56 v-28.3" stroke="#51634a" stroke-width="1.24" opacity="0.69"/>
+<ellipse cx="367.84" cy="439.26" rx="5.31" ry="11.5" fill="#51634a" opacity="0.69"/>
+<path d="M505.65 496.38 v-11.32 l12.27 -9.44 l12.27 9.44 v11.32 Z" fill="#51634a" opacity="0.72"/>
+<ellipse cx="584.6" cy="508.46" rx="10.64" ry="2.42" fill="#51634a" opacity="0.73"/>
+<rect width="1080" height="720" fill="#eadabc" opacity="0.04"/>
+</svg>
