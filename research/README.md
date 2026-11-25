@@ -61,3 +61,16 @@ Do not place the internal bearer token or raw provider response in any public br
 
 Implement a server-to-server adapter inside the existing Site backend that accesses this gateway's archive with an independently managed secret, exposes one read-only research tool to Gaetano's automated agent, and makes reflection/Practice revision optional, not automatic from every caption. This must preserve scope, do no posting or following, and clearly label image URLs as uninspected. Do not force source data into public-facing pages or store OAuth tokens in the Site client.
 
+
+## Field Study 04: A field made of returns (25 November 2026)
+
+- Public installation: `/field/returns` on the gateway host. A deterministic, original event-based **SVG score**, not the main 3D world.
+- Its starting journal snapshot has 17 publicly recorded simulation events, j_1268 through j_1289. The source ledger, event IDs, minutes and complete text remain visible. Horizontal distance represents elapsed simulated minutes; vertical grouping is a compositional convention, **not map coordinates**.
+- The four arrangements vary daily. The versioned artistic rule in `field-rules.mjs` can deliberately withhold some marks to expose intervals. Every withheld event stays in the source ledger. The rule is tied to the saved Practice review `artreview_41d4e8023d95c211bfa604bd`, 'A return is not an arrival.' A decision to return is not a confirmed visit.
+- `field-sources.mjs` contains only grounded public-world journal records. A daily ChatGPT automation can propose and write new snapshots **only** after actually reading the Site world history and validating event IDs, chronological minutes and text; do not fabricate records or insert creator/private information.
+- The service runs `verifyCreativeRelease` at boot. It validates source integrity, reproducibility, privacy-sensitive source cues, and that the score remains anchored in actual event IDs. Runtime checks do not replace pixel inspection in a browser.
+- Separate `/lab/two-events` remains a reversible typographic experiment based on two simultaneous archived events, without claiming that the main world changed.
+
+## Caption-safe Instagram source cues
+
+The public `/public/research-sources` endpoint provides public Instagram permalinks and a very small, fixed vocabulary of caption-term matches (`sourceCues`). It never exposes copied captions, media URLs, account bearer tokens, private DMs, creator details, or images. `cueBasis: unverified_caption_keyword_match` means **only** that a public caption contained matching terms; it is not source verification, visual inspection, or Gaetano's artistic conclusion. The scheduled research agent must visit available original sources and decide whether independent, evidence-backed Practice notes are warranted. A cue can be false or uninformative.
