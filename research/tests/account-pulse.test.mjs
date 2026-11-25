@@ -14,6 +14,7 @@ test('readiness distinguishes missing data and verified empty feed',()=>{
  assert.equal(seen.status,'observed');
  assert.equal(seen.mediaCount,0);
  assert.equal(seen.mediaReadVerified,true);
+ assert.deepEqual(publicAccountPulse({...row,profile_flags:{biographyConfigured:true,websiteConfigured:false,profilePictureConfigured:null}}).profileSetup,{biographyConfigured:true,websiteConfigured:false,profilePictureConfigured:null});
  assert.equal(publicAccountPulse({...row,followers_count:null,follows_count:null}).followersCount,null);
  assert.equal(publicAccountPulse({...row,followers_count:null,follows_count:null}).followingCount,null);
  assert.ok(!JSON.stringify(seen).includes('TOKEN_ENCRYPTION_KEY'));
@@ -42,5 +43,5 @@ test('read errors do not claim an empty feed',async()=>{
  });
  await observer.observe();
  const insertion=q.find(([sql])=>sql.includes('INSERT INTO gaetano_ig_pulse'));
- assert.equal(insertion[1].at(-1),'media_unavailable');
+ assert.equal(insertion[1].at(-2),'media_unavailable');
 });
