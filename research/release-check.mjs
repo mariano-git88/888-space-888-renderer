@@ -5,6 +5,8 @@ import { sourcePair,validateSourcePair,layoutForDay } from './studio.mjs';
 import { publicSourceManifest,captionCues,publicResearchHealth } from './public.mjs';
 import { publicAccountPulse } from './account-pulse.mjs';
 import { validateMentionReply, containsGaetanoMention } from './mention-reply.mjs';
+import {verifyMetaSignature,parseSignedMentions,matchMetaVerification} from './mention-events.mjs';
+import {createHmac} from 'node:crypto';
 import { visibleActionMatrix } from './social-permissions.mjs';
 import { authorizeURL } from './security.mjs';
 import { publicReadingMap } from './artist-roster.mjs';
@@ -44,5 +46,11 @@ export function verifyCreativeRelease() {
   if(granted.mentionedMediaReply.permissionsGranted!==false)throw Error('missing_mentions_scope_not_blocked');
   const url=new URL(authorizeURL({appId:'123',redirectURI:'https://example.org/auth/facebook/callback',state:'mention_trial',includeMentions:true}));
   if(!url.searchParams.get('scope')?.includes('pages_manage_metadata')||!url.searchParams.get('scope')?.includes('instagram_manage_comments'))throw Error('mentions_oauth_missing_grants');
-  return {checks:19,fieldEvents:fieldSnapshot.events.length,latestSource:fieldSnapshot.lastEventId};
+  const signedPayload=Buffer.from(JSON.stringify({object:'instagram',entry:[{id:'17841400000000001',time:1795610000,changes:[{field:'mentions',value:{media_id:'17918195224117851'}}]}]}));
+  const fakeSecret='demo-test-secret-only',signedHeader='sha256='+createHmac('sha256',fakeSecret).update(signedPayload).digest('hex');
+  if(!verifyMetaSignature(signedPayload,signedHeader,fakeSecret))throw Error('valid_webhook_signature_rejected');
+  if(parseSignedMentions(signedPayload,signedHeader,fakeSecret,'17841400000000001').length!==1)throw Error('signed_mention_not_parsed');
+  const q=new URLSearchParams({'hub.mode':'subscribe','hub.verify_token':'example-verify-token','hub.challenge':'12345'});
+  if(matchMetaVerification(q,'example-verify-token')!=='12345'||matchMetaVerification(q,'wrong')!==null)throw Error('webhook_challenge_validation_broken');
+  return {checks:22,fieldEvents:fieldSnapshot.events.length,latestSource:fieldSnapshot.lastEventId};
 }
