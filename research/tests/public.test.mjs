@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {publicSourceManifest} from '../public.mjs';
+import {publicSourceManifest,publicResearchHealth} from '../public.mjs';
 
 test('manifest exports only source link metadata',()=>{
  const input=[{
@@ -24,4 +24,16 @@ test('manifest rejects arbitrary links and clamps source count',()=>{
  const x=publicSourceManifest([{username:'foo',permalink:'https://evil.example/'},...Array(30).fill(good)],20);
  assert.equal(x.sources.length,12);
  assert.equal(x.sources[0].permalink,good.permalink);
+});
+
+
+test('research-health only lists approved public artist accounts and bounded states',()=>{
+ const out=publicResearchHealth([
+   {username:'micahlexier',last_status:'ok',last_scan_at:'2026-11-25T12:00:00Z',access_token:'DO-NOT-SHOW'},
+   {username:'unapproved',last_status:'ok',last_scan_at:'2026-11-25T12:00:00Z',personalData:'secret'}
+ ],new Set(['micahlexier','bookworksuk']));
+ assert.deepEqual(out.accounts.map(x=>x.username),['bookworksuk','micahlexier']);
+ assert.equal(out.accounts[0].status,'not_checked');
+ assert.equal(out.accounts[1].status,'observed');
+ assert.doesNotMatch(JSON.stringify(out),/secret|DO-NOT-SHOW|unapproved/);
 });
