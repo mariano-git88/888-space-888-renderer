@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { Pool } from 'pg';
 import { makeResearchCollector } from './collector.mjs';
 import { createAccountObserver } from './account-pulse.mjs';
@@ -251,16 +251,24 @@ const server=http.createServer(async(req,res)=>{
     res.writeHead(302,{'Set-Cookie':stateCookie(state),'Location':authorizeURL({appId:e.META_APP_ID,redirectURI:e.META_REDIRECT_URI,state,version,configId:e.META_LOGIN_CONFIG_ID}), 'Cache-Control':'no-store'});return res.end();
   }
   if(req.method==='GET'&&u.pathname==='/auth/facebook/callback')return callback(req,res,u);
-  if(req.method==='POST'&&(u.pathname==='/internal/mention-reply'||u.pathname==='/internal/mention-source')){
+  if(req.method==='POST'&&['/internal/mention-reply','/internal/mention-source','/internal/mention-status'].includes(u.pathname)){
     const bearer=String(req.headers.authorization||'');
     const key=bearer.startsWith('Bearer ')?bearer.slice(7):'';
-    const fromSite=secureEqual(key,e.SITE_MENTION_BRIDGE_KEY);
+    // Verifier for a 256-bit random bearer held in the Site's secret store.
+    // A copy of this digest cannot authenticate a request. Rotate with the Site.
+    const fromSite=/^[0-9a-f]{64}$/.test(key) && secureEqual(
+      createHash('sha256').update(key).digest('hex'), 'd782dc0652dd07e840713f05202c59eaf32ff2e676c7a5f3575979fd13bfdc4a');
     if(!fromSite&&!secureEqual(key,e.MENTION_WRITE_KEY))return send(res,401,{status:'unauthorized'});
     if(!configured())return send(res,503,{status:'not_configured'});
     if(!String(req.headers['content-type']||'').toLowerCase().startsWith('application/json'))return send(res,415,{status:'json_required'});
     let args;
     try{args=await readBody(req)}catch{return send(res,400,{status:'invalid_request'})}
     try{
+      if(u.pathname==='/internal/mention-status'){
+        const audit=await socialScopes.read();
+        return send(res,200,{bridge:'connected',account:'888.gaetano.888',checkedAt:audit.checkedAt,
+          permissionsGranted:audit.mentionedMediaReply.permissionsGranted,missingScopes:audit.mentionedMediaReply.missingScopes});
+      }
       if(u.pathname==='/internal/mention-source'){
         const {token}=await installedToken();
         const source=await verifyMentionSource({meta,token,igId:e.META_IG_ID,...mentionTarget(args),includeText:true});
