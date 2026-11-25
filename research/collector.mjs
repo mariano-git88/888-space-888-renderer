@@ -55,10 +55,16 @@ export function makeResearchCollector({ pool, installedToken, meta, igId, approv
       username:x.username,mediaId:x.media_id,permalink:x.permalink,caption:x.caption,mediaType:x.media_type,publishedAt:x.posted_at,observedAt:x.first_seen_at,metadata:x.visual_metadata
     }))};
   }
+  async function readPublicSources(limit=12) {
+    await initialize();
+    const n=Math.max(1,Math.min(12,Number.isInteger(limit)?limit:12));
+    const r=await pool.query("SELECT username,permalink,media_type,posted_at FROM gaetano_research_posts WHERE permalink LIKE 'https://www.instagram.com/p/%' ORDER BY posted_at DESC NULLS LAST LIMIT $1",[n]);
+    return r.rows;
+  }
   async function readStatus() {
     await initialize();
     const r=await pool.query("SELECT username,last_scan_at,last_status FROM gaetano_research_scans ORDER BY username LIMIT 8");
     return {scans:r.rows};
   }
-  return { scan,readArchive,readStatus };
+  return { scan,readArchive,readStatus,readPublicSources };
 }
