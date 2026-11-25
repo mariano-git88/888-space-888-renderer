@@ -2,7 +2,9 @@ import { fieldSnapshot } from './field-sources.mjs';
 import { validFieldSnapshot,fieldScore,fieldHTML,visibleFieldMarks } from './field.mjs';
 import { fieldRules } from './field-rules.mjs';
 import { sourcePair,validateSourcePair,layoutForDay } from './studio.mjs';
-import { publicSourceManifest,captionCues } from './public.mjs';
+import { publicSourceManifest,captionCues,publicResearchHealth } from './public.mjs';
+import { publicAccountPulse } from './account-pulse.mjs';
+import { publicReadingMap } from './artist-roster.mjs';
 
 // Bounded release smoke checks; safe to execute without Meta, a token, or database.
 export function verifyCreativeRelease() {
@@ -24,5 +26,12 @@ export function verifyCreativeRelease() {
   if(!cues.includes('counted-language')||!cues.includes('printed-matter')||cues.length>4)throw Error('research_cue_classifier_failed');
   const needles=['access_token','META_APP_SECRET','OWNER_META_ASID','private mailbox'];
   if(needles.some(s=>html.includes(s)))throw Error('field_privacy_guard');
-  return {checks:10,fieldEvents:fieldSnapshot.events.length,latestSource:fieldSnapshot.lastEventId};
+  const roster=publicReadingMap();
+  if(roster.targets.length!==6||roster.targets.some(x=>!x.officialSource.startsWith('https://')))throw Error('reading_map_invalid');
+  const health=publicResearchHealth([{username:'not_authorized',last_status:'ok'}],new Set(['micahlexier']));
+  if(health.accounts.length!==1||health.accounts[0].status!=='not_checked')throw Error('research_health_leak');
+  if(publicAccountPulse(null).status!=='unobserved')throw Error('missing_profile_not_preserved');
+  const empty=publicAccountPulse({account_username:'888.gaetano.888',read_status:'ok',media_count:null,followers_count:null,follows_count:null,checked_at:new Date(date),recent_media:[]});
+  if(empty.mediaCount!==null||empty.followersCount!==null||empty.recentPublications.length!==0)throw Error('unknown_metrics_incorrectly_zero');
+  return {checks:14,fieldEvents:fieldSnapshot.events.length,latestSource:fieldSnapshot.lastEventId};
 }
