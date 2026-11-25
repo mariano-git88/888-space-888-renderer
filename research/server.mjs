@@ -98,6 +98,8 @@ async function callback(req,res,u){
   await init();
   const expiry=auth.expiresIn>0?new Date(Date.now()+auth.expiresIn*1000):null;
   await pool.query("INSERT INTO gaetano_meta_tokens(name,ciphertext,ig_id,authorized_at,expires_at) VALUES('gaetano',$1,$2,NOW(),$3) ON CONFLICT (name) DO UPDATE SET ciphertext=EXCLUDED.ciphertext,ig_id=EXCLUDED.ig_id,authorized_at=NOW(),expires_at=EXCLUDED.expires_at",[sealToken(auth.token,e.TOKEN_ENCRYPTION_KEY),e.META_IG_ID,expiry]);
+  await socialScopes.recordFromMeta(perms).catch(()=>console.log('gaetano_social_scope_cache_unavailable'));
+
   return page(res,200,extendedLogin?'Mention-capable login connected for Gaetano. Meta App Review and webhooks may still be required.':'Research login connected for Gaetano. This tab may be closed.');
  }catch(err){console.error('gaetano_meta_authorization_failed');return page(res,503,'Could not complete authorization. Existing Instagram connections are unchanged.');}
 }
