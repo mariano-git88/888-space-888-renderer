@@ -2,7 +2,7 @@ import { fieldSnapshot } from './field-sources.mjs';
 import { validFieldSnapshot,fieldScore,fieldHTML,visibleFieldMarks } from './field.mjs';
 import { fieldRules } from './field-rules.mjs';
 import { sourcePair,validateSourcePair,layoutForDay } from './studio.mjs';
-import { publicSourceManifest } from './public.mjs';
+import { publicSourceManifest,captionCues } from './public.mjs';
 
 // Bounded release smoke checks; safe to execute without Meta, a token, or database.
 export function verifyCreativeRelease() {
@@ -20,7 +20,9 @@ export function verifyCreativeRelease() {
   if(!html.startsWith('<!doctype html>')||!html.includes(fieldSnapshot.lastEventId)||!html.includes('not where it happened in space'))throw Error('field_html_broken');
   const pub=publicSourceManifest([{username:'artist',permalink:'https://www.instagram.com/p/ABCdef9/',caption:'not exported',media_type:'IMAGE'}]);
   if(pub.sources.length!==1||JSON.stringify(pub).includes('not exported'))throw Error('research_manifest_leak');
+  const cues=captionCues('A collaborative edition of old stock envelopes and strict letter-count texts.');
+  if(!cues.includes('counted-language')||!cues.includes('printed-matter')||cues.length>4)throw Error('research_cue_classifier_failed');
   const needles=['access_token','META_APP_SECRET','OWNER_META_ASID','private mailbox'];
   if(needles.some(s=>html.includes(s)))throw Error('field_privacy_guard');
-  return {checks:9,fieldEvents:fieldSnapshot.events.length,latestSource:fieldSnapshot.lastEventId};
+  return {checks:10,fieldEvents:fieldSnapshot.events.length,latestSource:fieldSnapshot.lastEventId};
 }
