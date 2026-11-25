@@ -46,6 +46,18 @@ The private API:
 
 Do not place the internal bearer token or raw provider response in any public browser page. Never copy source images into original Gaetano artworks without a license or authorization. The Site's existing research MCP uses the **separate Unified Login token** until a specifically authenticated Site-to-gateway adapter is deployed.
 
-## Deployment status
+## Verified deployment — 24 November 2026
 
-Gateway implementation prepared; full credential setup, redirect approval, authorization and live end-to-end testing remain to be completed. A deployed HTTP service does not imply Meta is connected.
+- Research gateway: `gaetano-meta-research.onrender.com` (Render Frankfurt, Starter).
+- Private DB: `gaetano-meta-research-db` (Render Frankfurt). No external IPs added to its allowlist.
+- Facebook Login for Business authorization completed; the callback returned its success page after checking the authorized app-scoped user, granted permissions, Facebook Page, linked Instagram account and encrypted token storage.
+- The **first independent server-side Business Discovery call succeeded**, logging `gaetano_research_scan_ok count=3 rich_metadata=true`. This means metadata was received, **not** that anyone inspected image pixels.
+- The service now checks its approved artist allowlist on startup and at six-hour wakeups, but skips accounts successfully checked in the previous 20 hours. It caches up to three posts per artist privately in PostgreSQL, deduplicated, deleting source posts not reobserved for 14 days.
+- Private read endpoints `GET /internal/archive` and `GET /internal/research-status` require an independent bearer. **Do not expose the bearer in URLs, prompts, client-side code or GitHub.**
+- The token still expires or can be revoked. Reauthorization may be needed, typically after about 60 days, and the running service must be monitored for `gaetano_research_authorization_expired` or `gaetano_research_scan_unavailable`.
+- The site-side `instagram_research_read` tool **still uses Unified Login**, not this service. The archive has not yet been connected to the agent's Site/Practice ingestion path. Its posts are source observations, not completed readings or artistic choices.
+
+## Next integration
+
+Implement a server-to-server adapter inside the existing Site backend that accesses this gateway's archive with an independently managed secret, exposes one read-only research tool to Gaetano's automated agent, and makes reflection/Practice revision optional, not automatic from every caption. This must preserve scope, do no posting or following, and clearly label image URLs as uninspected. Do not force source data into public-facing pages or store OAuth tokens in the Site client.
+
