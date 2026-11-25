@@ -5,6 +5,7 @@ import { makeResearchCollector } from './collector.mjs';
 import { publicSourceManifest } from './public.mjs';
 import { studioHTML } from './studio.mjs';
 import { fieldHTML } from './field.mjs';
+import { verifyCreativeRelease } from './release-check.mjs';
 import { REQUIRED_PERMISSIONS, authorizeURL, secureEqual, sealToken, openToken, ownedInstagramMatches, isValidUsername, sanitizeDiscovery } from './security.mjs';
 
 const e=process.env;
@@ -176,6 +177,8 @@ const server=http.createServer(async(req,res)=>{
   return send(res,404,{status:'not_found'});
  }catch(err){console.error('gaetano_meta_service_error');if(!res.headersSent)send(res,500,{status:'internal_error'});}
 });
+const release=verifyCreativeRelease();
+console.log('gaetano_field_release_checked count='+release.checks+' events='+release.fieldEvents);
 server.listen(Number(e.PORT)||10000,'0.0.0.0',()=>{console.log('gaetano_meta_research_ready');setTimeout(()=>{void researchCollector.scan();},8000).unref();});
 setInterval(()=>{void researchCollector.scan();},6*60*60*1000).unref();
 process.on('SIGTERM',()=>server.close(()=>pool.end()));
