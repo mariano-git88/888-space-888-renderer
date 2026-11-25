@@ -1,6 +1,7 @@
 import http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { Pool } from 'pg';
+import { makeResearchCollector } from './collector.mjs';
 import { REQUIRED_PERMISSIONS, authorizeURL, secureEqual, sealToken, openToken, ownedInstagramMatches, isValidUsername, sanitizeDiscovery } from './security.mjs';
 
 const e=process.env;
@@ -77,6 +78,7 @@ async function callback(req,res,u){
   return page(res,200,'Research login connected for Gaetano. This tab may be closed.');
  }catch(err){console.error('gaetano_meta_authorization_failed');return page(res,503,'Could not complete authorization. Existing Instagram connections are unchanged.');}
 }
+const researchCollector=makeResearchCollector({pool,installedToken,meta,igId:e.META_IG_ID,approved,sanitizeDiscovery,configured});
 async function readBody(req){
  let s='';
  for await(const chunk of req){s+=chunk.toString('utf8');if(s.length>2048)throw error('request_too_large')}
@@ -116,8 +118,21 @@ const server=http.createServer(async(req,res)=>{
     catch(err){return send(res,200,{status:err.code==='authorization_expired'?'authorization_expired':'authorization_required'})}
   }
   if(req.method==='POST'&&u.pathname==='/internal/discover')return discovery(req,res);
+  if(req.method==='GET'&&u.pathname==='/internal/archive'){
+    if(!authenticated(req))return send(res,401,{status:'unauthorized'});
+    if(!configured())return send(res,503,{status:'not_configured'});
+    try { return send(res,200,await researchCollector.readArchive(Number(u.searchParams.get('limit')||20))); }
+    catch { return send(res,503,{status:'archive_unavailable'}); }
+  }
+  if(req.method==='GET'&&u.pathname==='/internal/research-status'){
+    if(!authenticated(req))return send(res,401,{status:'unauthorized'});
+    if(!configured())return send(res,503,{status:'not_configured'});
+    try { return send(res,200,await researchCollector.readStatus()); }
+    catch { return send(res,503,{status:'archive_unavailable'}); }
+  }
   return send(res,404,{status:'not_found'});
  }catch(err){console.error('gaetano_meta_service_error');if(!res.headersSent)send(res,500,{status:'internal_error'});}
 });
-server.listen(Number(e.PORT)||10000,'0.0.0.0',()=>console.log('gaetano_meta_research_ready'));
+server.listen(Number(e.PORT)||10000,'0.0.0.0',()=>{console.log('gaetano_meta_research_ready');setTimeout(()=>{void researchCollector.scan();},8000).unref();});
+setInterval(()=>{void researchCollector.scan();},6*60*60*1000).unref();
 process.on('SIGTERM',()=>server.close(()=>pool.end()));
