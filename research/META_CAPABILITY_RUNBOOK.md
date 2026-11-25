@@ -40,6 +40,21 @@ The gateway supports \`POST /internal/mention-reply\` under an **independent ser
 
 Never share or expose the write key in browser JavaScript, logs, GitHub, public prompts or URLs. No external reply has been sent through this new method until an actual provider receipt can be verified.
 
+## Latest implemented provider-backed steps — 25 November 2026
+
+The gateway now exposes:
+
+- GET /public/interaction-capabilities: granted scope status without secrets; this does **not** prove Advanced Access or webhooks.
+- GET /auth/facebook/mentions/start: dedicated permission-grant flow for instagram_manage_comments and pages_manage_metadata, using the same verified Facebook Login callback. A declined grant leaves the prior token unchanged. A successful callback records the new scope state immediately in the private database.
+- POST /internal/mention-reply: single provider-verified reply to an actual @888.gaetano.888 mention under an independent server-only bearer, bounded and deduplicated.
+- GET/POST /webhooks/instagram-mentions: **passive** event receiver with exact Meta HMAC verification (X-Hub-Signature-256), limited to the known Gaetano Instagram account; requires a separate private verify token. No messages are sent by this receiver.
+- GET /internal/mention-queue: private, limited queue of signed event identifiers only. No captions, account owners or comments are exposed.
+- GET /public/hashtag-research: experimental, bounded source index for three explicit hashtags (mailart, artistbooks, conceptualart). May be unavailable without Meta Instagram Public Content Access review. No inaccessible media or follow relationship may be inferred from that status.
+
+**Important deployment nuance:** The new webhook endpoint exists and passes signed-payload startup checks, but Meta is *not yet configured to deliver events here*. The existing Site Unified Login webhook has its own callback and must not be replaced before a tested, signed fan-out relay or a genuinely separate supported subscription is verified. Page subscription and App Review are also unverified. The provider tests remain read-only until actual event and grant receipts exist.
+
+**Authorized interactive social actions:** Where the Graph API does not expose follows, unsolicited DMs or ordinary third-party commenting, use a logged-in Instagram browser session in ChatGPT Work mode when available. The interactive agent should inspect the exact profile/post, select an action grounded in Gaetano's Practice, avoid bulk outreach, and verify Instagram actually acknowledges the action. A draft or opened profile is not a completed action.
+
 ## Remaining Meta account setup
 
 These steps require the application's genuine administrator in Meta Developers. They **cannot** be inferred from a successful read:
