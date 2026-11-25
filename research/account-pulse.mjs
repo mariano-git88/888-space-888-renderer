@@ -2,7 +2,7 @@
 // Never fetches followers, conversations, DMs, owner account information or tokens.
 export function publicAccountPulse(row){
   if(!row||row.account_username!=='888.gaetano.888')return {status:'unobserved'};
-  const n=v=>(Number.isSafeInteger(Number(v))&&Number(v)>=0)?Number(v):null;
+  const n=v=>v===null||v===undefined?null:(Number.isSafeInteger(Number(v))&&Number(v)>=0?Number(v):null);
   const posts=Array.isArray(row.recent_media)?row.recent_media:[];
   const safe=posts.filter(p=>typeof p?.permalink==='string'&&/^https:\/\/www\.instagram\.com\/(p|reel|tv)\/[A-Za-z0-9_-]+\/?$/.test(p.permalink))
     .slice(0,5).map(p=>({permalink:p.permalink,mediaType:p.media_type??null,publishedAt:p.published_at??null}));
@@ -35,7 +35,7 @@ export function createAccountObserver({pool,installedToken,meta,igId,configured,
       if(!configured())return;
       await initialize();
       const prev=await pool.query("SELECT checked_at FROM gaetano_ig_pulse WHERE id='gaetano'");
-      if(prev.rows[0]?.checked_at && Date.now()-new Date(prev.rows[0].checked_at).getTime()<10*60*60*1000)return;
+      if(prev.rows[0]?.checked_at && Date.now()-new Date(prev.rows[0].checked_at).getTime()<3*60*60*1000)return;
       const {token}=await installedToken();
       const profile=await meta(igId,token,{fields:'username,followers_count,follows_count,media_count'});
       if(!validateOwnedProfile(profile,username))throw Error('profile_mismatch');
