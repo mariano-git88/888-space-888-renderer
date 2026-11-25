@@ -4,6 +4,9 @@ import { fieldRules } from './field-rules.mjs';
 import { sourcePair,validateSourcePair,layoutForDay } from './studio.mjs';
 import { publicSourceManifest,captionCues,publicResearchHealth } from './public.mjs';
 import { publicAccountPulse } from './account-pulse.mjs';
+import { validateMentionReply, containsGaetanoMention } from './mention-reply.mjs';
+import { visibleActionMatrix } from './social-permissions.mjs';
+import { authorizeURL } from './security.mjs';
 import { publicReadingMap } from './artist-roster.mjs';
 
 // Bounded release smoke checks; safe to execute without Meta, a token, or database.
@@ -33,5 +36,13 @@ export function verifyCreativeRelease() {
   if(publicAccountPulse(null).status!=='unobserved')throw Error('missing_profile_not_preserved');
   const empty=publicAccountPulse({account_username:'888.gaetano.888',read_status:'ok',media_count:null,followers_count:null,follows_count:null,checked_at:new Date(date),recent_media:[]});
   if(empty.mediaCount!==null||empty.followersCount!==null||empty.recentPublications.length!==0)throw Error('unknown_metrics_incorrectly_zero');
-  return {checks:14,fieldEvents:fieldSnapshot.events.length,latestSource:fieldSnapshot.lastEventId};
+  const mention=validateMentionReply({mediaId:'17918195224117851',message:'Thank you for the invitation.'});
+  if(mention.mediaId!=='17918195224117851'||mention.commentId!==null)throw Error('mention_payload_guard_invalid');
+  if(!containsGaetanoMention('Please see @888.gaetano.888')||containsGaetanoMention('@888.gaetano.888not'))throw Error('mention_source_guard_invalid');
+  if(visibleActionMatrix(null).mentionedMediaReply.permissionsGranted!==null)throw Error('mention_permissions_unverified_not_preserved');
+  const granted=visibleActionMatrix({check_status:'ok',grants:{instagram_manage_comments:true,pages_manage_metadata:false}});
+  if(granted.mentionedMediaReply.permissionsGranted!==false)throw Error('missing_mentions_scope_not_blocked');
+  const url=new URL(authorizeURL({appId:'123',redirectURI:'https://example.org/auth/facebook/callback',state:'mention_trial',includeMentions:true}));
+  if(!url.searchParams.get('scope')?.includes('pages_manage_metadata')||!url.searchParams.get('scope')?.includes('instagram_manage_comments'))throw Error('mentions_oauth_missing_grants');
+  return {checks:19,fieldEvents:fieldSnapshot.events.length,latestSource:fieldSnapshot.lastEventId};
 }
