@@ -13,6 +13,7 @@ export function publicAccountPulse(row){
     mediaCount:n(row.media_count),
     followersCount:n(row.followers_count),
     followingCount:n(row.follows_count),
+    profileSetup:{biographyConfigured:row.profile_flags?.biographyConfigured??null,websiteConfigured:row.profile_flags?.websiteConfigured??null,profilePictureConfigured:row.profile_flags?.profilePictureConfigured??null},
     recentPublications:safe,
     mediaReadVerified:row.read_status==='ok',
     source:'Meta Instagram API with Facebook Login; read-only, account-owned data',
@@ -27,6 +28,7 @@ export function createAccountObserver({pool,installedToken,meta,igId,configured,
   let working=false;
   async function initialize(){
     await pool.query("CREATE TABLE IF NOT EXISTS gaetano_ig_pulse (id TEXT PRIMARY KEY CHECK(id='gaetano'), account_username TEXT NOT NULL, media_count INTEGER, followers_count INTEGER, follows_count INTEGER, recent_media JSONB NOT NULL DEFAULT '[]'::jsonb, read_status TEXT NOT NULL, checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+    await pool.query("ALTER TABLE gaetano_ig_pulse ADD COLUMN IF NOT EXISTS profile_flags JSONB");
   }
   async function observe(){
     if(working)return;
@@ -37,7 +39,13 @@ export function createAccountObserver({pool,installedToken,meta,igId,configured,
       const prev=await pool.query("SELECT checked_at FROM gaetano_ig_pulse WHERE id='gaetano'");
       if(prev.rows[0]?.checked_at && Date.now()-new Date(prev.rows[0].checked_at).getTime()<3*60*60*1000)return;
       const {token}=await installedToken();
-      const profile=await meta(igId,token,{fields:'username,followers_count,follows_count,media_count'});
+      let profile,flags=null;
+      try {
+        profile=await meta(igId,token,{fields:'username,followers_count,follows_count,media_count,biography,website,has_profile_pic'});
+        flags={biographyConfigured:Boolean(profile.biography?.trim()),websiteConfigured:Boolean(profile.website?.trim()),profilePictureConfigured:profile.has_profile_pic===true};
+      }catch {
+        profile=await meta(igId,token,{fields:'username,followers_count,follows_count,media_count'});
+      }
       if(!validateOwnedProfile(profile,username))throw Error('profile_mismatch');
       let readStatus='media_unavailable',posts=[];
       try{
@@ -53,8 +61,8 @@ export function createAccountObserver({pool,installedToken,meta,igId,configured,
         // Never report a confirmed empty feed if the media read failed.
         console.log('gaetano_owned_media_unavailable');
       }
-      await pool.query("INSERT INTO gaetano_ig_pulse(id,account_username,media_count,followers_count,follows_count,recent_media,read_status,checked_at) VALUES('gaetano',$1,$2,$3,$4,$5::jsonb,$6,NOW()) ON CONFLICT (id) DO UPDATE SET account_username=EXCLUDED.account_username,media_count=EXCLUDED.media_count,followers_count=EXCLUDED.followers_count,follows_count=EXCLUDED.follows_count,recent_media=EXCLUDED.recent_media,read_status=EXCLUDED.read_status,checked_at=NOW()",[
-        username,profile.media_count??null,profile.followers_count??null,profile.follows_count??null,JSON.stringify(posts),readStatus
+      await pool.query("INSERT INTO gaetano_ig_pulse(id,account_username,media_count,followers_count,follows_count,recent_media,read_status,profile_flags,checked_at) VALUES('gaetano',$1,$2,$3,$4,$5::jsonb,$6,$7::jsonb,NOW()) ON CONFLICT (id) DO UPDATE SET account_username=EXCLUDED.account_username,media_count=EXCLUDED.media_count,followers_count=EXCLUDED.followers_count,follows_count=EXCLUDED.follows_count,recent_media=EXCLUDED.recent_media,read_status=EXCLUDED.read_status,profile_flags=EXCLUDED.profile_flags,checked_at=NOW()",[
+        username,profile.media_count??null,profile.followers_count??null,profile.follows_count??null,JSON.stringify(posts),readStatus,JSON.stringify(flags)
       ]);
       console.log('gaetano_account_pulse_observed status='+readStatus);
     }catch{console.log('gaetano_account_pulse_unavailable')}
@@ -62,7 +70,7 @@ export function createAccountObserver({pool,installedToken,meta,igId,configured,
   }
   async function read(){
     await initialize();
-    const r=await pool.query("SELECT account_username,media_count,followers_count,follows_count,recent_media,read_status,checked_at FROM gaetano_ig_pulse WHERE id='gaetano'");
+    const r=await pool.query("SELECT account_username,media_count,followers_count,follows_count,recent_media,read_status,profile_flags,checked_at FROM gaetano_ig_pulse WHERE id='gaetano'");
     return publicAccountPulse(r.rows[0]);
   }
   return {observe,read};
