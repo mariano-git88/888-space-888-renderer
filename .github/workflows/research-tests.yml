@@ -1,0 +1,22 @@
+name: Research gateway tests
+on:
+  push:
+    branches: [gaetano-meta-research]
+    paths:
+      - 'research/**'
+      - '.github/workflows/research-tests.yml'
+  pull_request:
+    paths:
+      - 'research/**'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --prefix research --ignore-scripts --no-audit --no-fund
+      - run: npm --prefix research test
