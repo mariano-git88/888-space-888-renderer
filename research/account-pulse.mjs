@@ -42,7 +42,7 @@ export function createAccountObserver({pool,installedToken,meta,igId,configured,
       let profile,flags=null;
       try {
         profile=await meta(igId,token,{fields:'username,followers_count,follows_count,media_count,biography,website,has_profile_pic'});
-        flags={biographyConfigured:Boolean(profile.biography?.trim()),websiteConfigured:Boolean(profile.website?.trim()),profilePictureConfigured:profile.has_profile_pic===true};
+        flags={biographyConfigured:Boolean(profile.biography?.trim()),websiteConfigured:Boolean(profile.website?.trim()),profilePictureConfigured:typeof profile.has_profile_pic==='boolean'?profile.has_profile_pic:null};
       }catch {
         profile=await meta(igId,token,{fields:'username,followers_count,follows_count,media_count'});
       }
