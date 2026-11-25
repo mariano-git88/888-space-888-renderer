@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import { makeResearchCollector } from './collector.mjs';
 import { publicSourceManifest } from './public.mjs';
 import { studioHTML } from './studio.mjs';
+import { fieldHTML } from './field.mjs';
 import { REQUIRED_PERMISSIONS, authorizeURL, secureEqual, sealToken, openToken, ownedInstagramMatches, isValidUsername, sanitizeDiscovery } from './security.mjs';
 
 const e=process.env;
@@ -107,6 +108,22 @@ const server=http.createServer(async(req,res)=>{
  try{
   const u=new URL(req.url,'https://service.local');
   if(req.method==='GET'&&u.pathname==='/health')return send(res,200,{status:'ok',configured:Boolean(configured())});
+  if(req.method==='GET'&&u.pathname==='/field/returns'){
+    const phaseValue=u.searchParams.get('phase');
+    if(phaseValue!==null && !/^[0-3]$/.test(phaseValue))return send(res,400,{status:'invalid_phase'});
+    const phase=phaseValue===null?null:Number(phaseValue);
+    const nonce=randomBytes(16).toString('base64');
+    const html=fieldHTML(new Date().toISOString().slice(0,10),phase).replace('<style>','<style nonce="'+nonce+'">');
+    res.writeHead(200,{
+      'Content-Type':'text/html; charset=utf-8',
+      'Cache-Control':'no-store',
+      'X-Content-Type-Options':'nosniff',
+      'Referrer-Policy':'no-referrer',
+      'X-Frame-Options':'DENY',
+      'Content-Security-Policy':"default-src 'none'; style-src 'nonce-"+nonce+"'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    });
+    return res.end(html);
+  }
   if(req.method==='GET'&&u.pathname==='/lab/two-events'){
     const nonce=randomBytes(16).toString('base64');
     const html=studioHTML(new Date().toISOString().slice(0,10))
