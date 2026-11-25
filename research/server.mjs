@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import { makeResearchCollector } from './collector.mjs';
 import { createAccountObserver } from './account-pulse.mjs';
 import { publicSourceManifest, publicResearchHealth } from './public.mjs';
+import { publicReadingMap } from './artist-roster.mjs';
 import { studioHTML } from './studio.mjs';
 import { fieldHTML } from './field.mjs';
 import { verifyCreativeRelease } from './release-check.mjs';
@@ -146,6 +147,9 @@ const server=http.createServer(async(req,res)=>{
   if(req.method==='GET'&&u.pathname==='/public/instagram-pulse'){
     try{return send(res,200,await ownedObserver.read());}
     catch{return send(res,503,{status:'pulse_unavailable'});}
+  }
+  if(req.method==='GET'&&u.pathname==='/public/reading-map'){
+    return send(res,200,publicReadingMap());
   }
   if(req.method==='GET'&&u.pathname==='/public/research-health'){
     try{
