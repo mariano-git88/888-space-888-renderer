@@ -35,10 +35,11 @@ export function isValidUsername(v){return typeof v==='string'&&/^[A-Za-z0-9_](?:
 export function ownedInstagramMatches(page,pageId,igId,name){
   return String(page?.id??'')===String(pageId)&&String(page?.instagram_business_account?.id??'')===String(igId)&&String(page?.instagram_business_account?.username??'').toLowerCase()===String(name).toLowerCase();
 }
-export function authorizeURL({appId,redirectURI,state,version='v27.0',configId}){
+export const MENTION_PERMISSIONS = Object.freeze(['instagram_manage_comments','pages_manage_metadata']);
+export function authorizeURL({appId,redirectURI,state,version='v27.0',configId,includeMentions=false}){
   if(!redirectURI?.startsWith('https://')||!appId||!state)throw Error('oauth_config_invalid');
   const u=new URL('https://www.facebook.com/'+version+'/dialog/oauth');
-  for(const [k,v] of Object.entries({client_id:appId,redirect_uri:redirectURI,response_type:'code',state,scope:REQUIRED_PERMISSIONS.join(',')}))u.searchParams.set(k,v);
+  for(const [k,v] of Object.entries({client_id:appId,redirect_uri:redirectURI,response_type:'code',state,scope:[...REQUIRED_PERMISSIONS,...(includeMentions?MENTION_PERMISSIONS:[])].join(',')}))u.searchParams.set(k,v);
   if(configId)u.searchParams.set('config_id',configId);
   return u.toString();
 }
