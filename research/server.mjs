@@ -2,6 +2,7 @@ import http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { Pool } from 'pg';
 import { makeResearchCollector } from './collector.mjs';
+import { publicSourceManifest } from './public.mjs';
 import { REQUIRED_PERMISSIONS, authorizeURL, secureEqual, sealToken, openToken, ownedInstagramMatches, isValidUsername, sanitizeDiscovery } from './security.mjs';
 
 const e=process.env;
@@ -105,6 +106,14 @@ const server=http.createServer(async(req,res)=>{
  try{
   const u=new URL(req.url,'https://service.local');
   if(req.method==='GET'&&u.pathname==='/health')return send(res,200,{status:'ok',configured:Boolean(configured())});
+  if(req.method==='GET'&&u.pathname==='/public/research-sources'){
+    try{
+      const links=await researchCollector.readPublicSources(12);
+      return send(res,200,publicSourceManifest(links,12));
+    } catch {
+      return send(res,503,{status:'sources_unavailable'});
+    }
+  }
   if(req.method==='GET'&&u.pathname==='/auth/facebook/start'){
     if(!configured())return page(res,503,'Setup is incomplete.');
     const state=randomBytes(32).toString('base64url');
