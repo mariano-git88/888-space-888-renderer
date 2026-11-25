@@ -14,6 +14,8 @@ test('readiness distinguishes missing data and verified empty feed',()=>{
  assert.equal(seen.status,'observed');
  assert.equal(seen.mediaCount,0);
  assert.equal(seen.mediaReadVerified,true);
+ assert.equal(publicAccountPulse({...row,followers_count:null,follows_count:null}).followersCount,null);
+ assert.equal(publicAccountPulse({...row,followers_count:null,follows_count:null}).followingCount,null);
  assert.ok(!JSON.stringify(seen).includes('TOKEN_ENCRYPTION_KEY'));
  assert.equal(publicAccountPulse({...row,read_status:'media_unavailable'}).mediaReadVerified,false);
 });
