@@ -1,0 +1,25 @@
+name: Gaetano research and field checks
+on:
+  push:
+    branches: [gaetano-meta-research]
+    paths:
+      - 'research/**'
+      - '.github/workflows/research-checks.yml'
+  pull_request:
+    paths:
+      - 'research/**'
+      - '.github/workflows/research-checks.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify safe research and evolving field
+        run: node --test research/tests/*.test.mjs
