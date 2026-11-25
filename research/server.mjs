@@ -6,6 +6,7 @@ import { createAccountObserver } from './account-pulse.mjs';
 import { makeScopeObserver } from './social-permissions.mjs';
 import { executeMentionReply } from './mention-reply.mjs';
 import { matchMetaVerification,parseSignedMentions,storeVerifiedMentions,getMentionQueue } from './mention-events.mjs';
+import { createHashtagReader } from './hashtag-research.mjs';
 import { publicSourceManifest, publicResearchHealth } from './public.mjs';
 import { publicReadingMap } from './artist-roster.mjs';
 import { studioHTML } from './studio.mjs';
@@ -106,6 +107,7 @@ async function callback(req,res,u){
 const researchCollector=makeResearchCollector({pool,installedToken,meta,igId:e.META_IG_ID,approved,sanitizeDiscovery,configured});
 const ownedObserver=createAccountObserver({pool,installedToken,meta,igId:e.META_IG_ID,configured});
 const socialScopes=makeScopeObserver({pool,installedToken,meta,configured});
+const hashtags=createHashtagReader({pool,installedToken,meta,igId:e.META_IG_ID,configured});
 async function readBody(req){
  let s='';
  for await(const chunk of req){s+=chunk.toString('utf8');if(s.length>2048)throw error('request_too_large')}
@@ -214,6 +216,10 @@ const server=http.createServer(async(req,res)=>{
       return send(res,200,publicResearchHealth(result.scans,approved));
     }catch{return send(res,503,{status:'research_health_unavailable'});}
   }
+  if(req.method==='GET'&&u.pathname==='/public/hashtag-research'){
+    try{return send(res,200,await hashtags.readPublic());}
+    catch{return send(res,503,{status:'hashtag_unavailable'});}
+  }
   if(req.method==='GET'&&u.pathname==='/public/research-sources'){
     try{
       const links=await researchCollector.readPublicSources(12);
@@ -277,8 +283,9 @@ const server=http.createServer(async(req,res)=>{
 });
 const release=verifyCreativeRelease();
 console.log('gaetano_field_release_checked count='+release.checks+' events='+release.fieldEvents);
-server.listen(Number(e.PORT)||10000,'0.0.0.0',()=>{console.log('gaetano_meta_research_ready');setTimeout(()=>{void researchCollector.scan();},8000).unref();setTimeout(()=>{void ownedObserver.observe();},12000).unref();setTimeout(()=>{void socialScopes.observe();},16000).unref();});
+server.listen(Number(e.PORT)||10000,'0.0.0.0',()=>{console.log('gaetano_meta_research_ready');setTimeout(()=>{void researchCollector.scan();},8000).unref();setTimeout(()=>{void ownedObserver.observe();},12000).unref();setTimeout(()=>{void socialScopes.observe();},16000).unref();setTimeout(()=>{void hashtags.scan();},20000).unref();});
 setInterval(()=>{void researchCollector.scan();},6*60*60*1000).unref();
 setInterval(()=>{void ownedObserver.observe();},6*60*60*1000).unref();
 setInterval(()=>{void socialScopes.observe();},8*60*60*1000).unref();
+setInterval(()=>{void hashtags.scan();},24*60*60*1000).unref();
 process.on('SIGTERM',()=>server.close(()=>pool.end()));
