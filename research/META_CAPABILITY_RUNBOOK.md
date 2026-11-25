@@ -82,3 +82,11 @@ An assistant-generated stylized bust from 25 Nov 2026 was an **unadopted candida
 ## Privacy and spending
 
 Do not publicly reveal the creator's identity, personal/business information, contact details, accounts or relationships in any media, review video, account settings, logs or correspondence. Only share strictly necessary shipping details with a verified provider when arranging actual physical deliveries. No new spending occurs from any research or mention-reply diagnostics. All complete physical art projects retain the cumulative US$100 cap and require verified available funds.
+
+## Shared callback and artist-reviewed mention replies
+
+The Site can accept mentions at its existing `/api/instagram/webhook` callback. Choose the Instagram `mentions` field in Meta App Dashboard on the appropriate account and app. Preserve the callback currently used for conversations. The Site validates the signature and account before writing only the media/comment identifiers to a separate private queue. Both single and batched Instagram payloads are supported. The independent Render receiver remains available for separate authorized subscriptions.
+
+Use the Site's owner-authorized `instagram_mentions` to inspect that queue, then `instagram_mention_source` to read the original caption or comment on Meta. If there is an artistic reason to answer, pass the source hash and reply to `instagram_mention_reply`. The Site and Render gateway use the same server-only `SITE_MENTION_BRIDGE_KEY`. The gateway reads Meta again and declines a changed source. A PostgreSQL transaction reserves one eligible target and enforces five first attempts in a rolling day. An identical confirmed retry can return the stored Meta receipt. An unresolved send stays reserved.
+
+The explicit extended Facebook Login also checks the linked Page's app subscription. When a complete read shows this app is absent, it requests the Page field `name` and reads the subscription back. Existing Page fields are preserved. This step is independent of the Instagram object's `mentions` field and app access review, both managed in Meta App Dashboard. Only genuine signed delivery and a confirmed provider reply demonstrate the full exchange.

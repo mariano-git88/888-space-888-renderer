@@ -43,3 +43,9 @@ test('event store holds only event IDs, not third-party caption content',async()
  assert.equal(result,1);assert.equal(inserts,1);
  assert.ok(!JSON.stringify(items).includes('private'));
 });
+
+test('documented Meta array and single envelopes deduplicate the same mention',()=>{
+ const batch=Buffer.from(JSON.stringify([payload,payload]));
+ const sig='sha256='+createHmac('sha256',secret).update(batch).digest('hex');
+ assert.deepEqual(parseSignedMentions(batch,sig,secret,id),parseSignedMentions(raw,signature,secret,id));
+});

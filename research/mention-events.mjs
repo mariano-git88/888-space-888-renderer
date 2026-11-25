@@ -22,9 +22,15 @@ export function matchMetaVerification(q,expected){
 export function parseSignedMentions(raw,signature,secret,expectedAccountId){
  if(!verifyMetaSignature(raw,signature,secret))throw Error('invalid_webhook_signature');
  let obj;try{obj=JSON.parse(raw.toString('utf8'))}catch{throw Error('invalid_webhook_json')}
- if(obj?.object!=='instagram'||!Array.isArray(obj.entry)||obj.entry.length>1000)throw Error('unexpected_meta_payload');
+ const envelopes=Array.isArray(obj)?obj:[obj];
+ if(!envelopes.length||envelopes.length>1000)throw Error('unexpected_meta_payload');
+ const entries=[];
+ for(const envelope of envelopes){
+   if(envelope?.object!=='instagram'||!Array.isArray(envelope.entry)||entries.length+envelope.entry.length>1000)throw Error('unexpected_meta_payload');
+   entries.push(...envelope.entry);
+ }
  const out=new Map();
- for(const entry of obj.entry){
+ for(const entry of entries){
    // Never import events from another Instagram account, even if Meta sends a
    // batched payload. The configured account is the only admissible origin.
    if(String(entry?.id||'')!==String(expectedAccountId))continue;

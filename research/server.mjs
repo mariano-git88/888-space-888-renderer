@@ -3,8 +3,9 @@ import { randomBytes } from 'node:crypto';
 import { Pool } from 'pg';
 import { makeResearchCollector } from './collector.mjs';
 import { createAccountObserver } from './account-pulse.mjs';
+import { ensurePageSubscription } from './page-subscription.mjs';
 import { makeScopeObserver } from './social-permissions.mjs';
-import { executeMentionReply } from './mention-reply.mjs';
+import { executeMentionReply, mentionTarget, verifyMentionSource } from './mention-reply.mjs';
 import { matchMetaVerification,parseSignedMentions,storeVerifiedMentions,getMentionQueue } from './mention-events.mjs';
 import { createHashtagReader } from './hashtag-research.mjs';
 import { publicSourceManifest, publicResearchHealth } from './public.mjs';
@@ -44,7 +45,7 @@ async function meta(path,token,params={}){
  if(!response.ok||body.error)throw error('meta_request_failed');
  return body;
 }
-async function metaPost(path,token,params={}){
+async function graphPost(path,token,params={}){
  const u=new URL(graphBase+'/'+path);
  const form=new URLSearchParams();
  for(const [k,v] of Object.entries(params))if(v!==null&&v!==undefined)form.set(k,String(v));
@@ -53,8 +54,8 @@ async function metaPost(path,token,params={}){
    body:form,redirect:'error',signal:AbortSignal.timeout(16000)
  });
  const data=await response.json().catch(()=>({}));
- if(!response.ok||data.error||!data.id)throw error('mention_reply_provider_unconfirmed');
- return {id:String(data.id)};
+ if(!response.ok||data.error)throw error('provider_write_unconfirmed');
+ return data;
 }
 async function oauthExchange(code){
  const u=new URL(graphBase+'/oauth/access_token');
@@ -101,7 +102,13 @@ async function callback(req,res,u){
   await pool.query("INSERT INTO gaetano_meta_tokens(name,ciphertext,ig_id,authorized_at,expires_at) VALUES('gaetano',$1,$2,NOW(),$3) ON CONFLICT (name) DO UPDATE SET ciphertext=EXCLUDED.ciphertext,ig_id=EXCLUDED.ig_id,authorized_at=NOW(),expires_at=EXCLUDED.expires_at",[sealToken(auth.token,e.TOKEN_ENCRYPTION_KEY),e.META_IG_ID,expiry]);
   await socialScopes.recordFromMeta(perms).catch(()=>console.log('gaetano_social_scope_cache_unavailable'));
 
-  return page(res,200,extendedLogin?'Mention-capable login connected for Gaetano. Meta App Review and webhooks may still be required.':'Research login connected for Gaetano. This tab may be closed.');
+  if(extendedLogin){
+    const enrollment=await ensurePageSubscription({meta,subscribe:graphPost,userToken:auth.token,appId:e.META_APP_ID,
+      pageId:e.META_PAGE_ID,igId:e.META_IG_ID,username:e.META_IG_USERNAME||'888.gaetano.888'}).catch(()=>'unverified');
+    console.log('gaetano_mentions_page_subscription '+enrollment);
+    return page(res,200,'Mention-capable login connected for Gaetano. Linked Page subscription: '+enrollment+'. Check the Instagram mentions field and Advanced Access in Meta App Dashboard.');
+  }
+  return page(res,200,'Research login connected for Gaetano. This tab may be closed.');
  }catch(err){console.error('gaetano_meta_authorization_failed');return page(res,503,'Could not complete authorization. Existing Instagram connections are unchanged.');}
 }
 const researchCollector=makeResearchCollector({pool,installedToken,meta,igId:e.META_IG_ID,approved,sanitizeDiscovery,configured});
@@ -244,16 +251,23 @@ const server=http.createServer(async(req,res)=>{
     res.writeHead(302,{'Set-Cookie':stateCookie(state),'Location':authorizeURL({appId:e.META_APP_ID,redirectURI:e.META_REDIRECT_URI,state,version,configId:e.META_LOGIN_CONFIG_ID}), 'Cache-Control':'no-store'});return res.end();
   }
   if(req.method==='GET'&&u.pathname==='/auth/facebook/callback')return callback(req,res,u);
-  if(req.method==='POST'&&u.pathname==='/internal/mention-reply'){
-    if(!e.MENTION_WRITE_KEY)return send(res,503,{status:'write_connection_disabled'});
-    const header=String(req.headers.authorization||'');
-    if(!header.startsWith('Bearer ')||!secureEqual(header.slice(7),e.MENTION_WRITE_KEY))return send(res,401,{status:'unauthorized'});
+  if(req.method==='POST'&&(u.pathname==='/internal/mention-reply'||u.pathname==='/internal/mention-source')){
+    const bearer=String(req.headers.authorization||'');
+    const key=bearer.startsWith('Bearer ')?bearer.slice(7):'';
+    const fromSite=secureEqual(key,e.SITE_MENTION_BRIDGE_KEY);
+    if(!fromSite&&!secureEqual(key,e.MENTION_WRITE_KEY))return send(res,401,{status:'unauthorized'});
     if(!configured())return send(res,503,{status:'not_configured'});
     if(!String(req.headers['content-type']||'').toLowerCase().startsWith('application/json'))return send(res,415,{status:'json_required'});
     let args;
     try{args=await readBody(req)}catch{return send(res,400,{status:'invalid_request'})}
     try{
-      return send(res,200,await executeMentionReply({pool,meta,post:(id,token,params)=>metaPost(id+'/mentions',token,params),installedToken,igId:e.META_IG_ID,args}));
+      if(u.pathname==='/internal/mention-source'){
+        const {token}=await installedToken();
+        const source=await verifyMentionSource({meta,token,igId:e.META_IG_ID,...mentionTarget(args),includeText:true});
+        return send(res,200,source);
+      }
+      if(fromSite && !/^[0-9a-f]{64}$/.test(args?.expectedSourceHash||''))return send(res,400,{status:'source_review_required'});
+      return send(res,200,await executeMentionReply({pool,meta,post:(id,token,params)=>graphPost(id+'/mentions',token,params),installedToken,igId:e.META_IG_ID,args}));
     }catch(err){
       // Invalid, unverifiable or unsupported inputs must never trigger a Meta write.
       return send(res,422,{status:err?.message==='mention_unverified'?'mention_not_verified':'mention_request_not_eligible'});
