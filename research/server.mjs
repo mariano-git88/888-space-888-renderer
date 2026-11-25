@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { Pool } from 'pg';
 import { makeResearchCollector } from './collector.mjs';
 import { createAccountObserver } from './account-pulse.mjs';
-import { publicSourceManifest } from './public.mjs';
+import { publicSourceManifest, publicResearchHealth } from './public.mjs';
 import { studioHTML } from './studio.mjs';
 import { fieldHTML } from './field.mjs';
 import { verifyCreativeRelease } from './release-check.mjs';
@@ -146,6 +146,12 @@ const server=http.createServer(async(req,res)=>{
   if(req.method==='GET'&&u.pathname==='/public/instagram-pulse'){
     try{return send(res,200,await ownedObserver.read());}
     catch{return send(res,503,{status:'pulse_unavailable'});}
+  }
+  if(req.method==='GET'&&u.pathname==='/public/research-health'){
+    try{
+      const result=await researchCollector.readStatus();
+      return send(res,200,publicResearchHealth(result.scans,approved));
+    }catch{return send(res,503,{status:'research_health_unavailable'});}
   }
   if(req.method==='GET'&&u.pathname==='/public/research-sources'){
     try{
