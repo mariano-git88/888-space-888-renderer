@@ -33,3 +33,22 @@ export function publicSourceManifest(records,limit=12){
       sourceCues:captionCues(x.caption),cueBasis:'unverified_caption_keyword_match'}))
  };
 }
+
+
+// Public source diagnostics: no provider errors, tokens, private identities,
+// messages, captions or account numeric identifiers.
+export function publicResearchHealth(scans,approved){
+  const safe=new Set([...approved].filter(x=>/^[a-zA-Z0-9_.]{1,30}$/.test(x)).map(x=>x.toLowerCase()));
+  const byName=new Map((Array.isArray(scans)?scans:[]).filter(x=>safe.has(String(x.username).toLowerCase()))
+    .map(x=>[x.username.toLowerCase(),x]));
+  return {
+    source:'Meta Business Discovery research gateway',
+    scope:'Professional accounts only. A failed read is not evidence of a non-professional account or blocked permission.',
+    accounts:[...safe].sort().map(username=>{
+      const r=byName.get(username);
+      const status=r?.last_status==='ok'?'observed':r?.last_status==='unavailable'?'unavailable':'not_checked';
+      const date=r?.last_scan_at ? new Date(r.last_scan_at) : null;
+      return {username,status,lastAttemptAt:date && Number.isFinite(date.getTime())?date.toISOString():null};
+    })
+  };
+}
