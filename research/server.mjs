@@ -5,6 +5,7 @@ import { makeResearchCollector } from './collector.mjs';
 import { createAccountObserver } from './account-pulse.mjs';
 import { makeScopeObserver } from './social-permissions.mjs';
 import { executeMentionReply } from './mention-reply.mjs';
+import { matchMetaVerification,parseSignedMentions,storeVerifiedMentions,getMentionQueue } from './mention-events.mjs';
 import { publicSourceManifest, publicResearchHealth } from './public.mjs';
 import { publicReadingMap } from './artist-roster.mjs';
 import { studioHTML } from './studio.mjs';
@@ -128,6 +129,39 @@ async function discovery(req,res){
 const server=http.createServer(async(req,res)=>{
  try{
   const u=new URL(req.url,'https://service.local');
+  if(u.pathname==='/webhooks/instagram-mentions'&&req.method==='GET'){
+    const challenge=matchMetaVerification(u.searchParams,e.META_MENTIONS_VERIFY_TOKEN);
+    if(challenge===null)return send(res,403,{status:'verification_failed'});
+    res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
+    return res.end(challenge);
+  }
+  if(u.pathname==='/webhooks/instagram-mentions'&&req.method==='POST'){
+    if(!e.META_APP_SECRET)return send(res,503,{status:'webhook_unconfigured'});
+    if(!String(req.headers['content-type']||'').toLowerCase().startsWith('application/json'))return send(res,415,{status:'json_required'});
+    let chunks=[],size=0,raw;
+    try{
+      for await(const chunk of req){
+        size+=chunk.length;
+        if(size>131072)throw Error('too_large');
+        chunks.push(chunk);
+      }
+      raw=Buffer.concat(chunks);
+    }catch{return send(res,413,{status:'payload_too_large'})}
+    let events;
+    try{events=parseSignedMentions(raw,req.headers['x-hub-signature-256'],e.META_APP_SECRET,e.META_IG_ID)}
+    catch(err){return send(res,err?.message==='invalid_webhook_signature'?401:400,{status:'webhook_rejected'})}
+    try{
+      await storeVerifiedMentions(pool,events);
+      // No unsolicited replies, no sender identities or message content stored.
+      return send(res,200,{status:'acknowledged',mentionsAccepted:events.length});
+    }catch{return send(res,503,{status:'webhook_storage_unavailable'})}
+  }
+  if(u.pathname==='/internal/mention-queue'&&req.method==='GET'){
+    const header=String(req.headers.authorization||'');
+    if(!e.MENTION_WRITE_KEY||!header.startsWith('Bearer ')||!secureEqual(header.slice(7),e.MENTION_WRITE_KEY))return send(res,401,{status:'unauthorized'});
+    try{return send(res,200,await getMentionQueue(pool,Number(u.searchParams.get('limit')||10)))}
+    catch{return send(res,503,{status:'mention_queue_unavailable'})}
+  }
   if(req.method==='GET'&&u.pathname==='/health')return send(res,200,{status:'ok',configured:Boolean(configured())});
   if(req.method==='GET'&&u.pathname==='/field/returns'){
     const phaseValue=u.searchParams.get('phase');
