@@ -9,7 +9,7 @@ import { publicReadingMap } from './artist-roster.mjs';
 import { studioHTML } from './studio.mjs';
 import { fieldHTML } from './field.mjs';
 import { verifyCreativeRelease } from './release-check.mjs';
-import { REQUIRED_PERMISSIONS, authorizeURL, secureEqual, sealToken, openToken, ownedInstagramMatches, isValidUsername, sanitizeDiscovery } from './security.mjs';
+import { REQUIRED_PERMISSIONS, MENTION_PERMISSIONS, authorizeURL, secureEqual, sealToken, openToken, ownedInstagramMatches, isValidUsername, sanitizeDiscovery } from './security.mjs';
 
 const e=process.env;
 const version=e.META_GRAPH_VERSION||'v27.0';
@@ -78,11 +78,13 @@ async function callback(req,res,u){
   if(!secureEqual(String(user.id||''),e.OWNER_META_ASID))return page(res,403,'An unauthorized Facebook account was used.');
   const granted=new Set((perms.data||[]).filter(p=>p.status==='granted').map(p=>p.permission));
   if(!REQUIRED_PERMISSIONS.every(p=>granted.has(p)))return page(res,403,'Required permissions were not granted.');
+  const extendedLogin=String(u.searchParams.get('state')||'').startsWith('mention_');
+  if(extendedLogin&&!MENTION_PERMISSIONS.every(p=>granted.has(p)))return page(res,403,'Meta did not grant the required mention permissions. The existing connection is unchanged.');
   if(!ownedInstagramMatches(account,e.META_PAGE_ID,e.META_IG_ID,e.META_IG_USERNAME||'888.gaetano.888'))return page(res,403,'The selected Page does not match Gaetano.');
   await init();
   const expiry=auth.expiresIn>0?new Date(Date.now()+auth.expiresIn*1000):null;
   await pool.query("INSERT INTO gaetano_meta_tokens(name,ciphertext,ig_id,authorized_at,expires_at) VALUES('gaetano',$1,$2,NOW(),$3) ON CONFLICT (name) DO UPDATE SET ciphertext=EXCLUDED.ciphertext,ig_id=EXCLUDED.ig_id,authorized_at=NOW(),expires_at=EXCLUDED.expires_at",[sealToken(auth.token,e.TOKEN_ENCRYPTION_KEY),e.META_IG_ID,expiry]);
-  return page(res,200,'Research login connected for Gaetano. This tab may be closed.');
+  return page(res,200,extendedLogin?'Mention-capable login connected for Gaetano. Meta App Review and webhooks may still be required.':'Research login connected for Gaetano. This tab may be closed.');
  }catch(err){console.error('gaetano_meta_authorization_failed');return page(res,503,'Could not complete authorization. Existing Instagram connections are unchanged.');}
 }
 const researchCollector=makeResearchCollector({pool,installedToken,meta,igId:e.META_IG_ID,approved,sanitizeDiscovery,configured});
@@ -170,6 +172,16 @@ const server=http.createServer(async(req,res)=>{
     } catch {
       return send(res,503,{status:'sources_unavailable'});
     }
+  }
+  if(req.method==='GET'&&u.pathname==='/auth/facebook/mentions/start'){
+    if(!configured())return page(res,503,'Setup is incomplete.');
+    const state='mention_'+randomBytes(32).toString('base64url');
+    res.writeHead(302,{
+      'Set-Cookie':stateCookie(state),
+      'Location':authorizeURL({appId:e.META_APP_ID,redirectURI:e.META_REDIRECT_URI,state,version,configId:e.META_LOGIN_CONFIG_ID,includeMentions:true}),
+      'Cache-Control':'no-store'
+    });
+    return res.end();
   }
   if(req.method==='GET'&&u.pathname==='/auth/facebook/start'){
     if(!configured())return page(res,503,'Setup is incomplete.');
