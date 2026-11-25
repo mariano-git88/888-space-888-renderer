@@ -1,0 +1,25 @@
+name: Gaetano Meta Research checks
+on:
+  push:
+    branches:
+      - gaetano-meta-research
+    paths:
+      - "research/**"
+      - ".github/workflows/gaetano-research.yml"
+  pull_request:
+    paths:
+      - "research/**"
+jobs:
+  security-and-regression:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install research dependencies
+        run: npm install --prefix research --ignore-scripts --no-audit --no-fund
+      - name: Run research tests
+        run: npm test --prefix research
